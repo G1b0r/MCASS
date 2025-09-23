@@ -23,19 +23,14 @@ configtable = []
 
 #még a pingekhez lehetne adni sorszámot, hogy tudjuk melyik pingre válaszol, mer most ha kimegy ketto ping de olyan lassan valszol h az elso timoutol de a masodik kikuldese utan jon vissza az elso akkor annak jo lesz a statja de igazabol az elsore valaszolt, majd ha nagyon belekavar akk megcsinalom
 ping_tasks = [] ###mac,numberofpings(forcountdown),numberofpings,pingstart,pingend,pingtimesum,succestimer,timoutcounter
-#ping hivásakor hozzáadódik
-
 
 
 #az elejen kell emghatarozni a sor hosszat (elemszámra) nem kell dinamikusra mert egyseges hosszu kell legyen szal ha nem jo hosszusagu akkor mar ez egy fajta config ellenorzes h vmi hiba vana configba
-#kell valami formázás amivel megjelolni vagy a stringet h ne valtsa intre, vagy az inteket h valtsa at oket (sztem utobbi a konnyebb egy i elotaggal, azt akk az i-t kiszedi a maradek szam kene legyen ugyis az meg mehet intbe, bár kivettem a pinget a configbol szoval nem is kell
-
 with open("configtable.txt", 'r', encoding='UTF-8') as file:
     while line := file.readline():
         print(line.rstrip())
         configtable.append(line.rstrip().split(","))
-        for i in range(2, len(configtable[-1])):
-            configtable[-1][i] = int(configtable[-1][i])
+
 
 print(configtable)
 
@@ -125,21 +120,17 @@ client.subscribe(configreqtopic)
 client.subscribe(devicetopic)
 #client.subscribe("test/config/#")
 
-#ping("14-D4-24-9C-FA-99") #used for testing
-
-#ping("3C-AB-72-96-52-F4")
-
 client.on_message = on_message
 
 #client.loop_forever()
 client.loop_start()
 
-ping("3C-AB-72-96-52-F4", 4)
+ping("3C-AB-72-96-52-F4", 16)
 ping("AA-BB-CC-DD-EE-FF", 4)
 
-while True:
+while True: #loop
 
-    if False:
+    if False: #og ping
         ping("3C-AB-72-96-52-F4")
         time.sleep(1)
         ping_table.append([configtable[2][3]])
