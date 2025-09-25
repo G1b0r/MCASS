@@ -30,6 +30,8 @@ with open("configtable.txt", 'r', encoding='UTF-8') as file:
     while line := file.readline():
         print(line.rstrip())
         configtable.append(line.rstrip().split(","))
+        if len(configtable[-1]) == 2:
+            configtable[-1].append("None")
 
 
 print(configtable)
@@ -115,6 +117,23 @@ def on_message(client, userData, msg):
                 address = configtable[i][0]
                 ping_end(address)
 
+    if str(msg.payload) == "b'PRTCL_PINCONFIG:REQUEST'": #pinconfig request
+        #PRTCL_PINCONFIG:config
+        for i in range(0, len(configtable)):
+            if msg.topic == configtable[i][1]:
+                client.publish(configtable[i][1], f"PRTCL_PINCONFIG:{configtable[i][2]}")
+
+
+    if "PRTCL_READBACK:" in str(msg.payload): #readback
+        #PRTCL_READBACK:OK if ok
+        #PRTCL_READBACK:NOPE if not good readback
+        if "OK" not in str(msg.payload) and "NOPE" not in str(msg.payload):
+            for i in range(0, len(configtable)):
+                if msg.topic == configtable[i][1]:
+                    if str(msg.payload).split(":")[1][:-1] == configtable[i][2]:
+                        client.publish(configtable[i][1], "PRTCL_READBACK:OK")
+                    else:
+                        client.publish(configtable[i][1], "PRTCL_READBACK:NOPE")
 
 client.subscribe(configreqtopic)
 client.subscribe(devicetopic)
