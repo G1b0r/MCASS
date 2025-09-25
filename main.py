@@ -1,6 +1,11 @@
 from paho.mqtt import client as mqtt
 import time
 
+PROTOCOL_TIMEOUT = 5
+PROTOCOL_TIMEOUT_LONG = 60
+PROTOCOL_TIME = time.time() + PROTOCOL_TIMEOUT
+PROTOCOL_TIME_LONG = time.time() + PROTOCOL_TIMEOUT_LONG
+
 ping_table = []
 ping_table_long = []
 ping_min = 9999
@@ -32,6 +37,8 @@ with open("configtable.txt", 'r', encoding='UTF-8') as file:
         configtable.append(line.rstrip().split(","))
         if len(configtable[-1]) == 2:
             configtable[-1].append("None")
+        if len(configtable[-1][2]) == 0:
+            configtable[-1][2] = "None"
 
 
 print(configtable)
@@ -72,7 +79,12 @@ def ping(address, numberofpings): #ping start
             topic = configtable[i][1]
     client.publish(topic, "ping")
     configtable[i][2] = time.monotonic()'''#ezt majd at lehet rakni a loopba
+    for i in range(0, len(ping_tasks)):
+        if address == ping_tasks[i][0]:
+            print(f"Address {address} already in ping que, skipping")
+            return
     ping_tasks.append([address, numberofpings, numberofpings, 1, 0, 0, 0, 0])
+
 
 def ping_end(address):
     '''for i in range(0, len(configtable)):
@@ -144,10 +156,18 @@ client.on_message = on_message
 #client.loop_forever()
 client.loop_start()
 
-ping("3C-AB-72-96-52-F4", 16)
-ping("AA-BB-CC-DD-EE-FF", 4)
+#ping("3C-AB-72-96-52-F4", 16)
+#ping("AA-BB-CC-DD-EE-FF", 4)
 
 while True: #loop
+
+    if PROTOCOL_TIME < time.time():#protocol
+
+        PROTOCOL_TIME = time.time() + PROTOCOL_TIMEOUT
+
+    if PROTOCOL_TIME_LONG < time.time():#protocol long
+
+        PROTOCOL_TIME_LONG = time.time() + PROTOCOL_TIMEOUT_LONG
 
     if False: #og ping
         ping("3C-AB-72-96-52-F4")
