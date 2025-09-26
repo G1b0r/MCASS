@@ -58,6 +58,8 @@ class IOArray:
     SCL=0
     SDA=0
     
+    newValList=[]
+    
     def __init__(self):
         print("IOArray init")
         
@@ -86,16 +88,20 @@ class IOArray:
             else:
                 print(f"Unkown IO parameter was given in section: {configList[i]}")
         print(f"\n{self.analogInList}\n{self.digitalInList}\n{self.digitalOutList}\n{self.i2cAddressList}\n{self.pwmOutList}\n")
+        self.initAnalogIn()
+        self.initDigitalIn()
+        self.initDigitalOut()
+        self.initPWMOut()
         
     #add devices to lists------------------------------------------------------------------------
     def addAI(self, name, pin):
-        self.analogInList.append(f"{name}@{pin}@pindef@value".split("@"))
+        self.analogInList.append(f"{name}@{pin}@pindef@value@lastval".split("@"))
         print(f"Successfully added {name} input on pin {pin} to AnalogIn")
     def addDI(self, name, pin):
-        self.digitalInList.append(f"{name}@{pin}@pindef@value".split("@"))
+        self.digitalInList.append(f"{name}@{pin}@pindef@value@lastval".split("@"))
         print(f"Successfully added {name} input on pin {pin} to DigitalIn")
     def addDO(self, name, pin):
-        self.digitalOutList.append(f"{name}@{pin}@pindef@value".split("@"))
+        self.digitalOutList.append(f"{name}@{pin}@pindef@value@lastval".split("@"))
         print(f"Successfully added {name} output on pin {pin} to DigitalOut")
     def addPWMO(self, name, pin):
         self.pwmOutList.append(f"{name}@{pin}@pindef@value".split("@"))
@@ -107,7 +113,7 @@ class IOArray:
         self.SCL = pin
         print(f"Successfully set SCL to pin {pin}")
     def addi2cAddress(self, deviceName, address):
-        self.i2cAddressList.append(f"{deviceName}@{address}@pindef@value".split("@"))
+        self.i2cAddressList.append(f"{deviceName}@{address}@pindef@value@lastval".split("@"))
         print(f"Successfully added {deviceName} device with address {address} to i2c address list")
     
     #initialize and read/write fucntions---------------------------------------------------------------       
@@ -118,6 +124,7 @@ class IOArray:
     
     def readAnalog(self):
         for i in range(0, len(self.analogInList)):
+            self.analogInList[i][4] = self.analogInList[i][3]
             self.analogInList[i][3] = self.analogInList[i][2].read_u16()
             print(f"{self.analogInList[i][0]} with value of {self.analogInList[i][3]}")
     #*******************************        
@@ -127,6 +134,7 @@ class IOArray:
             
     def readDigital(self):
         for i in range(0, len(self.digitalInList)):
+            self.digitalInList[i][4] = self.digitalInList[i][3]
             self.digitalInList[i][3] = self.digitalInList[i][2].value()
             print(f"{self.digitalInList[i][0]} with value of {self.digitalInList[i][3]}")
     #*******************************        
@@ -156,6 +164,26 @@ class IOArray:
             if name == self.pwmOutList[i][0]:
                 self.pwmOutList[i][2].freq(frequency)
                 self.pwmOutList[i][2].duty(dutyCycle)
+                
+    def getVals(self):
+        self.readAnalog()
+        self.readDigital()
+        #read I2C
+        for i in range(0, len(self.analogInList)):
+            if self.analogInList[i][3] != self.analogInList[i][4]:
+                self.newValList.append(f"{self.analogInList[i][0]}@{self.analogInList[i][3]}")
+            else:
+                print(f"No new value for {self.analogInList[i][0]}, skipping send data")
+        for i in range(0, len(self.digitalInList)):
+            if self.digitalInList[i][3] != self.digitalInList[i][4]:
+                self.newValList.append(f"{self.digitalInList[i][0]}@{self.digitalInList[i][3]}")
+            else:
+                print(f"No new value for {self.digitalInList[i][0]}, skipping send data")
+        #send data
+        for i in range(0, len(self.newValList)):
+            mqtt_client.publish(DEVICE_TOPIC, f"{self.newValList[i]}")
+        self.newValList.clear()
+        
 
 class ASCII:
     HexCharList = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
@@ -548,7 +576,9 @@ if __name__ == "__main__":
                 if PINCONFIG_STATUS[0] == 0: #not yet requested config 
                     mqtt_client.publish(DEVICE_TOPIC, "PRTCL_PINCONFIG:REQUEST")
                     PINCONFIG_STATUS[0] = 1
-                    
+            
+            if PINCONFIG_STATUS[4] == 1:
+                IOArray.getVals()
                     
             PROTOCOL_TIME = time.time() + TIMEOUT
 ###########################################################################################################                
