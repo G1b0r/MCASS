@@ -35,80 +35,53 @@ configtable = []
 ping_tasks = [] ###mac,numberofpings(forcountdown),numberofpings,pingstart,pingend,pingtimesum,succestimer,timoutcounter
 
 
-file = open("log.txt", "w")
-file.close()
-file = open("console.txt", "w")
-file.close()
-def logger(info, level):
-    unkownlevel=""
-    if level not in ["console", "info", "warning", "error"]:
-        unkownlevel = level
-        level = "unkown"
-
-    wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
-
-    if level == "console":
+class logger2():
+    def __init__(self):
+        file = open("log2.txt", "w")
+        file.close()
+        file = open("console2.txt", "w")
+        file.close()
+    def console(self, info):
         #print to console only
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        file = open("console.txt", "a", encoding="utf-8")
+        file = open("console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Console] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-
-    elif level == "info":
-        #print to console only
+    def info(self, info):
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        file = open("log.txt", "a", encoding="utf-8")
+        file = open("log2.txt", "a", encoding="utf-8")
         file.write(f"\n[Info] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-        file = open("console.txt", "a", encoding="utf-8")
+        file = open("console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Info] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-
-    elif level == "warning":
-        #print to console and log.txt
+    def warning(self, info):
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file = open("log.txt", "a", encoding="utf-8")
+        file = open("log2.txt", "a", encoding="utf-8")
         file.write(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-        file = open("console.txt", "a", encoding="utf-8")
+        file = open("console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-
-    elif level == "error":
-        #print to console and log.txt
+    def error(self, info):
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file = open("log.txt", "a", encoding="utf-8")
+        file = open("log2.txt", "a", encoding="utf-8")
         file.write(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-        file = open("console.txt", "a", encoding="utf-8")
+        file = open("console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
 
-    elif level == "unkown":
-        #no level given, consider as error (mivel az is error h nincs megadva a level)
-        print(f"\n[Error, unkown info level given] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} \t info came from function {wherefrom} with [{unkownlevel}] info as level given")
-        file = open("log.txt", "a", encoding="utf-8")
-        file.write(f"\n[Error, unkown info level given] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} \t info came from function {wherefrom} with [{unkownlevel}] info as level given")
-        file.close()
-        file = open("console.txt", "a", encoding="utf-8")
-        file.write(f"\n[Error, unkown info level given] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} \t info came from function {wherefrom} with [{unkownlevel}] info as level given")
-        file.close()
-
-    else: #ez nem is megy mer a python alapbol agyverzest kap ha nem stimmel paramtere szam
-        #no level given, consider as error (mivel az is error h nincs megadva a level)
-        print(f"\n[Error, no info level given] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} \t info came from {wherefrom} with no info level given")
-        file = open("log.txt", "a", encoding="utf-8")
-        file.write(f"\n[Error, no info level given] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} \t info came from {wherefrom} with no info level given")
-        file.close()
-        file = open("console.txt", "a", encoding="utf-8")
-        file.write(f"\n[Error, no info level given] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} \t info came from {wherefrom} with no info level given")
-        file.close()
-
+log = logger2()
 
 #az elejen kell emghatarozni a sor hosszat (elemszámra) nem kell dinamikusra mert egyseges hosszu kell legyen szal ha nem jo hosszusagu akkor mar ez egy fajta config ellenorzes h vmi hiba vana configba
 with open("configtable.txt", 'r', encoding='UTF-8') as file:
     while line := file.readline():
-        logger(line.rstrip(), "console")
+        log.console(line.rstrip())
         configtable.append(line.rstrip().split(","))
         if len(configtable[-1]) == 2:
             configtable[-1].append("None")
@@ -116,7 +89,7 @@ with open("configtable.txt", 'r', encoding='UTF-8') as file:
             configtable[-1][2] = "None"
 
 
-logger(configtable, "console")
+log.console(configtable)
 
 #print(time.monotonic())
 
@@ -125,14 +98,14 @@ logger(configtable, "console")
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
 client.username_pw_set(username=username, password=password)
 
-logger("Trying to connect to server:", "info")
+log.info("Trying to connect to server:")
 while True:
     try:
         client.connect(broker, port)
     except Exception as e:
-        logger(f"Connection failed: {e}", "error")
+        log.error(f"Connection failed: {e}")
         continue
-    logger("Connection succesful", "info")
+    log.info("Connection succesful")
     break
 client.publish(configreqtopic, "testfromserver")
 
@@ -155,7 +128,7 @@ def get_device_config(address):
 def send_config(address, config):
     message = f"{address},{config[1]}"
     client.publish(configrepltopic, message)
-    logger(f"Sent config to {message}", "info")
+    log.info(f"Sent config to {message}")
 
 def ping(address, numberofpings): #ping start
     '''for i in range(0, len(configtable)): 
@@ -165,7 +138,7 @@ def ping(address, numberofpings): #ping start
     configtable[i][2] = time.monotonic()'''#ezt majd at lehet rakni a loopba
     for i in range(0, len(ping_tasks)):
         if address == ping_tasks[i][0]:
-            logger(f"Address {address} already in ping que, skipping", "info")
+            log.info(f"Address {address} already in ping que, skipping")
             return
     ping_tasks.append([address, numberofpings, numberofpings, 1, 0, 0, 0, 0])
 
@@ -183,16 +156,16 @@ def ping_end(address):
             ping_tasks[i][4] = ct
 
 def on_message(client, userData, msg):
-    logger(f"Message ({msg.payload}) arrived from ({msg.topic})", "console")
+    log.console(f"Message ({msg.payload}) arrived from ({msg.topic})")
     if msg.topic == configreqtopic:
         device = extract_address(str(msg.payload))
         #print(f"device: {device}")
         if device == None:
-            logger("No device address provided, continuing", "warning")
+            log.warning("No device address provided, continuing")
         else:
             config = get_device_config(device)
             if config == None:
-                logger(f"No device config available for {device}", "warning")
+                log.warning(f"No device config available for {device}")
             else:
                 send_config(device, config)
 
@@ -201,7 +174,7 @@ def on_message(client, userData, msg):
         if msg.topic == configtable[i][1]:
             if str(msg.payload) == "b'HERE'":
                 device = configtable[i][0]
-                logger(f"Device {device} succesfully connected to own channel", "info")
+                log.info(f"Device {device} succesfully connected to own channel")
                 client.publish(msg.topic, "channel change ack")
 
     if "b'ping ok'" == str(msg.payload):
@@ -283,19 +256,19 @@ while True: #loop
             if ping_tasks[i][6] + ping_tasks[i][7] == ping_tasks[i][2]:#ping_tasks[i][1] == 0:
                 #kiiras
                 if ping_tasks[i][6] == 0: #nem volt válaszolt ping
-                    logger(f"\nPing failed: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\n", "warning")
+                    log.warning(f"\nPing failed: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\n")
                 if ping_tasks[i][6] != 0: #volt valaszolt ping
-                    logger(f"\nPing results: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\nAvarage time was {ping_tasks[i][5]/ping_tasks[i][6]}\n\n", "info")
+                    log.info(f"\nPing results: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\nAvarage time was {ping_tasks[i][5]/ping_tasks[i][6]}\n\n")
                 ping_tasks.pop(i) #torles
         for i in range(0, len(ping_tasks)):#pingtimecalc
             if ping_tasks[i][3] < ping_tasks[i][4]:#ha pingstart hamarabb volt mint pingend
                 pingtime = ping_tasks[i][4] - ping_tasks[i][3] #calc pingtime
                 if pingtime < ping_timeout: #ha nem timoutolt
-                    logger(pingtime, "console")
+                    log.console(pingtime,)
                     ping_tasks[i][5] = ping_tasks[i][5] + pingtime #add to pingtimesum
                     ping_tasks[i][6] += 1 #increase succescounter by 1
                 else:
-                    logger(f"{ping_tasks[i][0]} lassan valaszolt: {pingtime} seconds", "info")
+                    log.info(f"{ping_tasks[i][0]} lassan valaszolt: {pingtime} seconds")
                     ping_tasks[i][7] += 1 #add one to timeout
 
             if ping_tasks[i][3] > ping_tasks[i][4] and ping_tasks[i][3] + ping_timeout < time.monotonic() and ping_tasks[i][3] != 1:#nem jött válasz timout (ha pingtart nagyobb mint pingend (elozobol) ÉS pingstart + timout kevesebb mint mostani ido ÉS nem kezdőállapot
@@ -305,7 +278,7 @@ while True: #loop
                 for j in range(0, len(configtable)):
                     if ping_tasks[i][0] == configtable[j][0]:
                         topic = configtable[j][1]
-                logger(ping_tasks, "console")
+                log.console(ping_tasks)
                 client.publish(topic, "ping")
                 ping_tasks[i][3] = time.monotonic()
                 ping_tasks[i][1] -= 1
