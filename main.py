@@ -6,10 +6,21 @@ from typing import cast
 import datetime
 import inspect
 
+PROTOCOL_TIMEOUT_SHORT = 0.5
 PROTOCOL_TIMEOUT = 5
 PROTOCOL_TIMEOUT_LONG = 60
-PROTOCOL_TIME = time.time() + PROTOCOL_TIMEOUT
-PROTOCOL_TIME_LONG = time.time() + PROTOCOL_TIMEOUT_LONG
+PROTOCOL_TIME_SHORT = 0
+PROTOCOL_TIME = 0
+PROTOCOL_TIME_LONG = 0
+def setpts():
+    global PROTOCOL_TIME_SHORT
+    PROTOCOL_TIME_SHORT = time.time() + PROTOCOL_TIMEOUT_SHORT
+def setpt():
+    global PROTOCOL_TIME
+    PROTOCOL_TIME = time.time() + PROTOCOL_TIMEOUT
+def setptl():
+    global PROTOCOL_TIME_LONG
+    PROTOCOL_TIME_LONG = time.time() + PROTOCOL_TIMEOUT_LONG
 
 ping_table = []
 ping_table_long = []
@@ -27,9 +38,6 @@ password = "mqtt"
 client_id = "MqttControlServer1"
 #mac add --- topic --- majd a tobbi
 configtable = []
-'''["14-D4-24-9C-FA-99", "test/devices/laptopwifi", 0, 0],
-             ["AA-BB-CC-DD-EE-FF", "test/devices/doesntexist", 0, 0],
-             ["3C-AB-72-96-52-F4", "test/devices/RP2040ETH_1", 0, 0]'''#a 0 a ping start, ping end
 
 #még a pingekhez lehetne adni sorszámot, hogy tudjuk melyik pingre válaszol, mer most ha kimegy ketto ping de olyan lassan valszol h az elso timoutol de a masodik kikuldese utan jon vissza az elso akkor annak jo lesz a statja de igazabol az elsore valaszolt, majd ha nagyon belekavar akk megcsinalom
 ping_tasks = [] ###mac,numberofpings(forcountdown),numberofpings,pingstart,pingend,pingtimesum,succestimer,timoutcounter
@@ -78,18 +86,146 @@ class logger2():
 
 log = logger2()
 
-#az elejen kell emghatarozni a sor hosszat (elemszámra) nem kell dinamikusra mert egyseges hosszu kell legyen szal ha nem jo hosszusagu akkor mar ez egy fajta config ellenorzes h vmi hiba vana configba
 with open("configtable.txt", 'r', encoding='UTF-8') as file:
+    linecount = 0 #sorok számozása
     while line := file.readline():
+        linecount += 1 #sor szám +1
+        tobedeleted = False #alapra állít a sor törlése
         log.console(line.rstrip())
-        configtable.append(line.rstrip().split(","))
-        if len(configtable[-1]) == 2:
-            configtable[-1].append("None")
-        if len(configtable[-1][2]) == 0:
-            configtable[-1][2] = "None"
+        if len(line.rstrip().split(",")) < 2: #ha nincs vessző, szóval valami biztos hiányzik
+            log.error("Config invalid, not enough arguments")
+        else:
+            configtable.append(line.rstrip().split(","))
+            if len(configtable[-1]) == 2: #ha nincs megadva pincofnig set it to none
+                configtable[-1].append("None")
+            if len(configtable[-1][2]) == 0: #ha van vessző de nincs irva semmi a pincofig reszhez set it to none
+                configtable[-1][2] = "None"
+            if len(configtable[-1][0]) != 17: #ha a mac cim nem 17 karakter hosszu
+                log.error(f"Mac address length is too short in line {linecount} with argument {configtable[-1][0]}")
+                tobedeleted = True
+            else:
+                if configtable[-1][0][2] == ":" and configtable[-1][0][5] == ":" and configtable[-1][0][8] == ":" and configtable[-1][0][11] == ":" and configtable[-1][0][14] == ":": #ha kettospontal van elválasztva rakja át kotojelre
+                    log.warning(f'Mac address format mismatch, converting ":" to "-" in {configtable[-1][0]} at line {linecount }')
+                    configtable[-1][0] = configtable[-1][0].replace(":", "-")
+                if configtable[-1][0].count("-") != 5:# ha nem 5 darab separator van
+                    log.error(f"Mac address segment separators count is incorrect in line {linecount} with argument {configtable[-1][0]}")
+                    tobedeleted = True
+                for i in range(1, 18):
+                    if i % 3 == 0:
+                        if configtable[-1][0][i-1] != "-":
+                            log.error(f"Mac address segment separators are incorrect in line {linecount} with argument {configtable[-1][0]}")
+                            tobedeleted = True
+                            break
+                    else:
+                        if ((configtable[-1][0][i-1] < '0' or configtable[-1][0][i-1] > '9') and (configtable[-1][0][i-1] < 'A' or configtable[-1][0][i-1] > 'F')):
+                            log.error(f"Mac address contains non hex characters in line {linecount} with argument {configtable[-1][0]}")
+                            tobedeleted = True
+                            break
 
+            log.console(configtable[-1])
+
+        if tobedeleted == True:
+            del configtable[-1]
 
 log.console(configtable)
+class protocolBook():
+    #protocollist=[protpointer, protname, type(short,normal,long)]
+    protocollist = []
+    protDict = {}
+
+    def __init__(self):
+        i = 1
+        for protocol in dir(protocolBook):
+            if "__" not in protocol and protocol != "protShort" and protocol != "protNorm" and protocol != "protLong" and protocol != "protocollist" and protocol != "protDict":
+                attr = getattr(protocolBook, protocol)
+                #print(protocol)
+                if protocol[-1] == "s":
+                    self.protocollist.append(str(f"{i}*{protocol}*short").split("*"))
+                    self.protDict[str(i)] = attr
+                elif protocol[-1] == "n":
+                    self.protocollist.append(str(f"{i}*{protocol}*normal").split("*"))
+                    self.protDict[str(i)] = attr
+                elif protocol[-1] == "l":
+                    self.protocollist.append(str(f"{i}*{protocol}*long").split("*"))
+                    self.protDict[str(i)] = attr
+                else:
+                    log.error(f"Unkown protocoltype defined in {protocol}")
+            i += 1
+        print("hebeguba", self.protocollist)
+        print("heblelegu", self.protDict)
+        #get protocol ID
+        '''for protocol in self.protDict:
+            oldID = protocol
+            ID = self.protDict[protocol](self, "getID")
+            self.protDict[ID] = self.protDict.pop(protocol)
+            for i in range(0, len(self.protocollist)):
+                if self.protocollist[i][0] == oldID:
+                    self.protocollist[i][0] = ID
+            print("ittvagyok", self.protDict)
+            print("ittlista", self.protocollist, "\n")'''
+#this is old one does not work beacouse of key changed while iteration error
+#lower one works
+
+        while True:
+            for protocol in self.protDict:
+                nothingchanged = True
+                oldID = protocol
+                if oldID[0] < 'A' or oldID[0] > 'Z':
+                    ID = self.protDict[protocol](self, "getID")
+                    self.protDict[ID] = self.protDict.pop(protocol)
+                    for i in range(0, len(self.protocollist)):
+                        if self.protocollist[i][0] == oldID:
+                            self.protocollist[i][0] = ID
+                    print("ittvagyok", self.protDict)
+                    print("ittlista", self.protocollist, "\n")
+                    nothingchanged = False
+                    break
+            if nothingchanged == True:
+                break
+
+    def testhogymukszike(self, command):
+        if command == "getID":
+            return "T99"
+        print("test hogy mukodik")
+    def testn(self, command):
+        if command == "getID":
+            return "T2"
+        print("test normal")
+    def tests(self, command):
+        if command == "getID":
+            return "T1"
+        print("test short")
+    def testl(self, command):
+        if command == "getID":
+            return "T3"
+        print("test long")
+
+
+    #protDict = {"T2": testn, "T1": tests, "T3": testl}
+    #print("heblelegu", protDict)
+
+    def protShort(self):
+        for i in range(0, len(self.protocollist)):
+            if self.protocollist[i][2] == "short":
+                #print("execute short protocol")
+                #self.protDict["T1"](self)
+                self.protDict[self.protocollist[i][0]](self, "none")
+                #shortfuncname = self.protDict["T1"]
+                #shortfuncname(self)
+    def protNorm(self):
+        for i in range(0, len(self.protocollist)):
+            if self.protocollist[i][2] == "normal":
+                #print("execute normal protocol")
+                #self.protDict["T2"](self)
+                self.protDict[self.protocollist[i][0]](self, "none")
+    def protLong(self):
+        for i in range(0, len(self.protocollist)):
+            if self.protocollist[i][2] == "long":
+                #print("execute long protocol")
+                #self.protDict["T3"](self)
+                self.protDict[self.protocollist[i][0]](self, "none")
+
+prot = protocolBook()
 
 #print(time.monotonic())
 
@@ -170,9 +306,9 @@ def on_message(client, userData, msg):
                 send_config(device, config)
 
 
-    for i in range(0, len(configtable)):
-        if msg.topic == configtable[i][1]:
-            if str(msg.payload) == "b'HERE'":
+    if str(msg.payload) == "b'HERE'":
+        for i in range(0, len(configtable)):
+            if msg.topic == configtable[i][1]:
                 device = configtable[i][0]
                 log.info(f"Device {device} succesfully connected to own channel")
                 client.publish(msg.topic, "channel change ack")
@@ -218,15 +354,15 @@ client.loop_start()
 
 while True: #loop
 
-    #add protocol short
-
+    if PROTOCOL_TIME_SHORT < time.time():#protocol long
+        setpts()
+        prot.protShort()
     if PROTOCOL_TIME < time.time():#protocol
-
-        PROTOCOL_TIME = time.time() + PROTOCOL_TIMEOUT
-
+        setpt()
+        prot.protNorm()
     if PROTOCOL_TIME_LONG < time.time():#protocol long
-
-        PROTOCOL_TIME_LONG = time.time() + PROTOCOL_TIMEOUT_LONG
+        setptl()
+        prot.protLong()
 
     if False: #og ping
         ping("3C-AB-72-96-52-F4")
