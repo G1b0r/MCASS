@@ -6,6 +6,7 @@ from typing import cast
 import datetime
 import inspect
 
+
 PROTOCOL_TIMEOUT_SHORT = 0.5
 PROTOCOL_TIMEOUT = 5
 PROTOCOL_TIMEOUT_LONG = 60
