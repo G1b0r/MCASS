@@ -4,9 +4,10 @@ import machine
 import time
 import ubinascii
 
+i2c = ""
+i2c = I2C(id=0, scl=1, sda=0, freq=400000)
 
 #pinconfighoz kikötesek
-#scl es sda nem lehet ugyanaz a pin
 #ha van i2c cim akkor legyen scl sda config is, ha nincs send error vagy valamifele ellenorzes
 #hogyha van már valami azon a pinen ne inditsa rá (és az elozot ami mar fogja azt a pint üsse ki mert görcs tudj amelyik van elirva)
 
@@ -37,14 +38,11 @@ BAUD_RATE = 115200             # BAUD_RATE
 
 uart1 = UART(1, baudrate=9600, tx=Pin(20), rx=Pin(21))
 
-
 class IOArray:
     #need a func to add them to the list
     #need a func to periodically get data and send them to server
     #dont send value if value is "value", inicializalashoz kell valami a listaba de lehetseges erteket nem irhatok bele mer szetbaszna a statot
     #maybe do a check hogy ne akarjak ADC-t egy olyan pinen amin nincs adc
-    
-    #ha pinconfig = None akkor ne csinaljon semmit, nincs config megadva
     
     #update idea, theres options for pullup/pulldown, maybe add the possibility to define pullup/down in config
     
@@ -57,6 +55,8 @@ class IOArray:
     pwmOutList=[]		#negyedik a sensor value
     SCL=0
     SDA=0
+    i2cByteArray = bytearray(8)
+    i2cRead = ""
     
     newValList=[]
     
@@ -92,6 +92,8 @@ class IOArray:
         self.initDigitalIn()
         self.initDigitalOut()
         self.initPWMOut()
+        self.initI2C()
+        self.scanI2C()
         
     #add devices to lists------------------------------------------------------------------------
     def addAI(self, name, pin):
@@ -113,7 +115,8 @@ class IOArray:
         self.SCL = pin
         print(f"Successfully set SCL to pin {pin}")
     def addi2cAddress(self, deviceName, address):
-        self.i2cAddressList.append(f"{deviceName}@{address}@pindef@value@lastval".split("@"))
+        address = address.split("x")[1]
+        self.i2cAddressList.append(f"{deviceName}@{address}@value@lastval".split("@"))
         print(f"Successfully added {deviceName} device with address {address} to i2c address list")
     
     #initialize and read/write fucntions---------------------------------------------------------------       
@@ -164,10 +167,59 @@ class IOArray:
             if name == self.pwmOutList[i][0]:
                 self.pwmOutList[i][2].freq(frequency)
                 self.pwmOutList[i][2].duty(dutyCycle)
-                
+    #********************************
+    def initI2C(self):
+        if self.SCL != self.SDA and self.SCL != 0 and self.SDA != 0:
+            #machine.I2C(0, int(self.SCL), int(self.SDA), freq=400000)
+            #I2C.init(0, int(self.SCL), int(self.SDA), freq=400000)
+            i2c = I2C(id=0, scl=int(self.SCL), sda=int(self.SDA), freq=400000)
+        else:
+            if self.SCL == 0 and self.SDA == 0:
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:SCL and SDA was left unconfigured")
+            elif self.SCL == 0:
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:SCL was left unconfigured")
+            elif self.SDA == 0:
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:SDA was left unconfigured")
+            elif self.SDA == self.SCL:
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:invalid I2C config SCL and SDA were provided the same pin")
+            else:
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:Unkown error while setting up I2C")
+            del self.i2cAddressList
+    
+    def scanI2C(self):
+        peripherals = i2c.scan()
+        print(peripherals)
+        mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:The following devices were found on I2C: {peripherals}")
+        for element in self.i2cAddressList:
+            if element[1] in peripherals:
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Device at {element[1]} was found connected, leaving in config")
+            else:
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Device with address {element[1]} was not found, removing from config")
+                self.i2cAddressList.remove(element)3
+        
+    def readI2C(self):
+        print("reading i2c")
+        for i in range(0, len(self.i2cAddressList)):
+            try:
+                self.i2cAddressList[i][3] = self.i2cAddressList[i][2]
+                #self.i2cByteArray = I2C.readfrom_into(int(self.i2cAddressList[i][1]), self.i2cByteArray, stop=True)
+                #i2c.readfrom_into(int(self.i2cAddressList[i][1]), self.i2cByteArray, stop=True)
+                self.i2cRead = i2c.readfrom(int(self.i2cAddressList[i][1]), 8)
+                self.i2cAddressList[i][2] = self.i2cByteArray
+                print(f"{self.i2cAddressList[i][0]} with value of {self.i2cAddressList[i][2]}")
+            except Exception as e:
+                print(e)
+                if str(e) == "[Errno 5] EIO":
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Can not communicate with device {self.i2cAddressList[i][0]} on address {self.i2cAddressList[i][1]}")
+                else:
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Unkown error occured while reading from I2C: {str(e)}")
+            
+        
+    #********************************
     def getVals(self):
         self.readAnalog()
         self.readDigital()
+        self.readI2C()
         #read I2C
         for i in range(0, len(self.analogInList)):
             if self.analogInList[i][3] != self.analogInList[i][4]:
@@ -180,6 +232,11 @@ class IOArray:
             else:
                 print(f"No new value for {self.digitalInList[i][0]}, skipping send data")
         #send data
+        for i in range(0, len(self.i2cAddressList)):
+            if self.i2cAddressList[i][2] != self.i2cAddressList[i][3]:
+                self.newValList.append(f"{self.i2cAddressList[i][0]}@{self.i2cAddressList[i][2]}")
+            else:
+                print(f"No new value for {self.i2cAddressList[i][0]}, skipping send data")
         for i in range(0, len(self.newValList)):
             mqtt_client.publish(DEVICE_TOPIC, f"{self.newValList[i]}")
         self.newValList.clear()
@@ -535,11 +592,14 @@ if __name__ == "__main__":
                     print(message.split(":")[1])
                     PINCONFIG = message.split(":")[1]
                     PINCONFIG_STATUS[1] = 1
+                    PROTOCOL_TIME = time.time()
                 if message == "PRTCL_READBACK:OK":
                     PINCONFIG_STATUS[3] = 1
+                    PROTOCOL_TIME = time.time()
                 if message == "PRTCL_READBACK:NOPE":
                     PINCONFIG_STATUS[1] = 0
                     PINCONFIG_STATUS[2] = 0
+                    PROTOCOL_TIME = time.time()
                 
         
 ############################################################################################################
@@ -607,4 +667,6 @@ if __name__ == "__main__":
                         break
             
         time.sleep_ms(0) # elozoleg 20 volt de most epp stabilabb az uart olvasas
+
+
 
