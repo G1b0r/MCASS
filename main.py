@@ -13,7 +13,8 @@ PROTOCOL_TIME_SHORT = 0
 PROTOCOL_TIME = 0
 PROTOCOL_TIME_LONG = 0
 
-
+TBCCONFLICTHANDLE = "error" # options are "error"/"delete"
+#hozza kell adni a device confighoz az ID-t amivel mqttre felcsatlakozi
 def setpts():
     global PROTOCOL_TIME_SHORT
     PROTOCOL_TIME_SHORT = time.time() + PROTOCOL_TIMEOUT_SHORT
@@ -42,7 +43,7 @@ configrepltopic = "test/config/reply"
 devicetopic = "test/devices/#"
 username = "mqttuser"
 password = "mqtt"
-client_id = "MqttControlServer1"
+client_id = "MQTTControlServer1"
 # mac add --- topic --- majd a tobbi
 configtable = []
 
@@ -97,7 +98,8 @@ class Logger2:
 
 log = Logger2()
 
-with open("configtable.txt", 'r', encoding='UTF-8') as cfile:
+
+with open("configtable.txt", 'r', encoding='UTF-8') as cfile: # ide be kene epiteni hogy ha nincs configtable.txt hozzon letre egyet
     linecount = 0  # sorok számozása
     while line := cfile.readline():
         linecount += 1  # sor szám +1
@@ -137,6 +139,51 @@ with open("configtable.txt", 'r', encoding='UTF-8') as cfile:
 
         if tobedeleted:
             del configtable[-1]
+
+#ha configfileba van es tbcbe is akkor vagy error vagy vegye ki tbcbol
+#readback of tbc and send error for them
+
+def tbcreadback():
+    alreadyaddedlist = []
+    configlsit = []
+    inboth = []
+    with open("tbc.txt", "r", encoding="UTF-8") as tobeconfigured:
+        while line := tobeconfigured.readline():
+            alreadyaddedlist.append(line.rstrip())
+        tobeconfigured.close()
+    for i in range(0, len(configtable)-1):
+        configlsit.append(configtable[i][0])
+    for i in range(0, len(alreadyaddedlist)):
+        if alreadyaddedlist[i] in configlsit:
+            inboth.append(alreadyaddedlist[i])
+
+    if TBCCONFLICTHANDLE == "delete":
+        newtbc = []
+        for address in alreadyaddedlist:
+            if address not in inboth:
+                newtbc.append(address)
+        with open("tbc.txt", "w", encoding="UTF-8") as tbcfile:
+            for address in newtbc:
+                tbcfile.write(f"\n{address}")
+        log.info("Modified TBC file, removed already configured entries")
+
+    elif TBCCONFLICTHANDLE == "error":
+        log.error(f"The following mac addresses are added to the list for configuring, but are already configured:{inboth}")
+
+    else:
+        log.error("Unkown setting given for TBCCONFLICTHANDLE")
+
+def tbc(mac_address):
+    with open("tbc.txt", "a", encoding="UTF-8") as tobeconfigured:
+        alreadyaddedlist = []
+        while line := tobeconfigured.readline():
+            alreadyaddedlist.append(line.rstrip())
+        if mac_address in alreadyaddedlist:
+            log.warning(f"Device with mac address {mac_address} is already in the to be configured list")
+        else:
+            tobeconfigured.write(f"\n{mac_address}")
+        tobeconfigured.close()
+
 
 log.console(configtable)
 
@@ -181,34 +228,34 @@ class ProtocolBook:
     def testn(self, command):
         if command == "getID":
             return "T2"
-        print("test normal")
+        #print("test normal")
 
     def tests(self, command):
         if command == "getID":
             return "T1"
-        print("test short")
+        #print("test short")
 
     def testl(self, command):
         if command == "getID":
             return "T3"
-        print("test long")
+        #print("test long")
 
     def protShort(self):
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "short":
-                log.console("Executes short protocols")
+                #log.console("Executes short protocols")
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def protNorm(self):
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "normal":
-                log.console("Executes normal protocols")
+                #log.console("Executes normal protocols")
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def protLong(self):
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "long":
-                log.console("Executes long protocols")
+                #log.console("Executes long protocols")
                 self.protDict[self.protocollist[i][0]](self, "none")
 
 
@@ -269,12 +316,13 @@ def on_message(client, userData, msg):
     if msg.topic == configreqtopic:
         device = extract_address(str(msg.payload))
         if device is None:
-            log.warning("No device address provided, continuing")
+            log.warning("No device address provided, continuing") # nem jött mac address az uzenetben
         else:
             config = get_device_config(device)
-            if config is None:
+            if config is None: # nincs a config fajlban a mac
                 log.warning(f"No device config available for {device}")
-            else:
+                tbc(device) # kulon fajlba beirni a nem definialt macet, met ha a confighoz adjuk hozza ugyanugy megfogja mert nincs hozza config és azt kiüti a beolvasas amihez nincs mqtt csati
+            else: #egyebkent kuldje el
                 send_config(device, config)
 
     if str(msg.payload) == "b'HERE'":
