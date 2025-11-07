@@ -105,7 +105,7 @@ class Logger2:
 log = Logger2()
 
 
-with open("configtable.txt", 'r', encoding='UTF-8') as cfile: # ide be kene epiteni hogy ha nincs configtable.txt hozzon letre egyet
+with open("configtable.txt", 'a+', encoding='UTF-8') as cfile: # a+: Read and append. Pointer at end. Creates file if it doesn't exist. was 'r' earlier
     linecount = 0  # sorok számozása
     while line := cfile.readline():
         linecount += 1  # sor szám +1
