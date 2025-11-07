@@ -5,6 +5,7 @@ from types import FrameType
 from typing import cast
 import datetime
 import inspect
+import os
 
 PROTOCOL_TIMEOUT_SHORT = 0.5
 PROTOCOL_TIMEOUT = 5
@@ -52,46 +53,51 @@ ping_tasks = []  # mac,numberofpings(forcountdown),numberofpings,pingstart,pinge
 
 
 class Logger2:
+
+    filename = ""
+    filepath = f"{os.getcwd()}/logs/"
     def __init__(self):
-        file = open("log2.txt", "w")
+        self.filename = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S').replace(" ", "_").replace(":", "_")
+        #self.filename = os.path.join(f"{os.getcwd()}", "logs", f"{self.filename}")
+        file = open(f"{self.filepath}{self.filename}_log2.txt", "w")
         file.close()
-        file = open("console2.txt", "w")
+        file = open(f"{self.filepath}{self.filename}_console2.txt", "w")
         file.close()
 
     def console(self, info):  # print to console only
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        file = open("console2.txt", "a", encoding="utf-8")
+        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Console] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
 
     def info(self, info):
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        file = open("log2.txt", "a", encoding="utf-8")
+        file = open(f"{self.filepath}{self.filename}_log2.txt", "a", encoding="utf-8")
         file.write(f"\n[Info] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-        file = open("console2.txt", "a", encoding="utf-8")
+        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Info] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
 
     def warning(self, info):
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file = open("log2.txt", "a", encoding="utf-8")
+        file = open(f"{self.filepath}{self.filename}_log2.txt", "a", encoding="utf-8")
         file.write(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-        file = open("console2.txt", "a", encoding="utf-8")
+        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
 
     def error(self, info):
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file = open("log2.txt", "a", encoding="utf-8")
+        file = open(f"{self.filepath}{self.filename}_log2.txt", "a", encoding="utf-8")
         file.write(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
-        file = open("console2.txt", "a", encoding="utf-8")
+        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
         file.write(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
         file.close()
 
@@ -106,7 +112,7 @@ with open("configtable.txt", 'r', encoding='UTF-8') as cfile: # ide be kene epit
         tobedeleted = False  # alapra állít a sor törlése
         log.console(line.rstrip())
         if len(line.rstrip().split(",")) < 2:  # ha nincs vessző, szóval valami biztos hiányzik
-            log.error("Config invalid, not enough arguments")
+            log.error(f"Config invalid, not enough arguments in line {linecount}")
         else:
             configtable.append(line.rstrip().split(","))
             if len(configtable[-1]) == 2:  # ha nincs megadva pincofnig set it to none
@@ -316,7 +322,7 @@ def on_message(client, userData, msg):
     if msg.topic == configreqtopic:
         device = extract_address(str(msg.payload))
         if device is None:
-            log.warning("No device address provided, continuing") # nem jött mac address az uzenetben
+            log.warning(f"No device address provided in message {msg.payload}, continuing") # nem jött mac address az uzenetben
         else:
             config = get_device_config(device)
             if config is None: # nincs a config fajlban a mac
@@ -352,6 +358,18 @@ def on_message(client, userData, msg):
                     else:
                         client.publish(configtable[i][1], "PRTCL_READBACK:NOPE")
 
+    if "PRTCL_LOG" in str(msg.payload):
+        if str(msg.payload).split(":")[0] == "b'PRTCL_LOG_INFO":
+            log.info(f'Log from {str(msg.topic)}: {str(msg.payload).split(":")[1][:-1]}')
+        elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG_WARNING":
+            log.warning(f'Log from {str(msg.topic)}: {str(msg.payload).split(":")[1][:-1]}')
+        elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG_ERROR":
+            log.error(f'Log from {str(msg.topic)}: {str(msg.payload).split(":")[1][:-1]}')
+        elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG":
+            log.warning(f'No error level was provided, general log protocol. Handling as warning. Error in next line')
+            log.warning(f'Log from {str(msg.topic)}: {str(msg.payload).split(":")[1][:-1]}')
+        else:
+            log.error(f'Unkown error level provided from {str(msg.topic)} with level {str(msg.payload).split(":")[0][-2:]}\nError message was: {str(msg.payload).split(":")[1][:-1]}')
 
 client.subscribe(configreqtopic)
 client.subscribe(devicetopic)
