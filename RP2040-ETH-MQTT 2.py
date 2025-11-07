@@ -142,19 +142,19 @@ class IOArray:
             elif "DigitalOut" in configList[i]:
                 self.addDO(configList[i].split("@")[1], configList[i].split("@")[2])
                 if configList[i].split("@")[-1] == "EC":
-                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG:No "EC" modifier avaible for Digital Outputs')
+                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG_WARNING:No "EC" modifier avaible for Digital Outputs')
             elif "PWMOut" in configList[i]:
                 self.addPWMO(configList[i].split("@")[1], configList[i].split("@")[2])
                 if configList[i].split("@")[-1] == "EC":
-                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG:No "EC" modifier avaible for PWM Outputs')
+                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG_WARNING:No "EC" modifier avaible for PWM Outputs')
             elif "SDA" in configList[i]:
                 self.SetSDA(configList[i].split("@")[1])
                 if configList[i].split("@")[-1] == "EC":
-                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG:No "EC" modifier avaible for I2C')
+                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG_WARNING:No "EC" modifier avaible for I2C')
             elif "SCL" in configList[i]:
                 self.SetSCL(configList[i].split("@")[1])
                 if configList[i].split("@")[-1] == "EC":
-                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG:No "EC" modifier avaible for I2C')
+                    mqtt_client.publish(DEVICE_TOPIC, 'PRTCL_LOG_WARNING:No "EC" modifier avaible for I2C')
             elif "0x" in configList[i]:
                 self.addi2cAddress(configList[i].split("@")[0], configList[i].split("@")[1])
             elif configList[i].split("@")[0] in self.supportedHardWare:
@@ -170,7 +170,7 @@ class IOArray:
         self.initPWMOut()
         self.initSpecHardWare()
         if not self.i2cAddressList: #ha ures
-            mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:No I2C address was provided, skipping init...")
+            mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_WARNING:No I2C address was provided, skipping init...")
         else:
             self.initI2C()
             self.scanI2C()
@@ -274,26 +274,26 @@ class IOArray:
             i2c = I2C(id=0, scl=int(self.SCL), sda=int(self.SDA), freq=400000)
         else:
             if self.SCL == 0 and self.SDA == 0:
-                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:SCL and SDA was left unconfigured")
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_WARNING:SCL and SDA was left unconfigured")
             elif self.SCL == 0:
-                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:SCL was left unconfigured")
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_WARNING:SCL was left unconfigured")
             elif self.SDA == 0:
-                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:SDA was left unconfigured")
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_WARNING:SDA was left unconfigured")
             elif self.SDA == self.SCL:
-                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:invalid I2C config SCL and SDA were provided the same pin")
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_ERROR:invalid I2C config SCL and SDA were provided the same pin")
             else:
-                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG:Unkown error while setting up I2C")
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_ERROR:Unkown error while setting up I2C")
             del self.i2cAddressList
 
     def scanI2C(self):
         peripherals = i2c.scan()
         print(peripherals)
-        mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:The following devices were found on I2C: {peripherals}")
+        mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_INFO:The following devices were found on I2C: {peripherals}")
         for element in self.i2cAddressList:
             if element[1] in peripherals:
-                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Device at {element[1]} was found connected, leaving in config")
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_INFO:Device at {element[1]} was found connected, leaving in config")
             else:
-                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Device with address {element[1]} was not found, removing from config")
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_WARNING:Device with address {element[1]} was not found, removing from config")
                 self.i2cAddressList.remove(element)
 
     def readI2C(self):
@@ -309,9 +309,9 @@ class IOArray:
             except Exception as e:
                 print(e)
                 if str(e) == "[Errno 5] EIO":
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Lost communication with device {self.i2cAddressList[i][0]} on address {self.i2cAddressList[i][1]}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Lost communication with device {self.i2cAddressList[i][0]} on address {self.i2cAddressList[i][1]}")
                 else:
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Unkown error occured while reading from I2C: {str(e)}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from I2C: {str(e)}")
 
     def initSpecHardWare(self): #{deviceName}@{deviceType}@{devicePin}@pindef@value@lastval
         for i in range(0, len(self.speHardWareList)):
@@ -332,10 +332,10 @@ class IOArray:
             except Exception as e:
                 print(e)
                 if str(e) == "[Errno 5] EIO":
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Can not communicate with device {self.i2cAddressList[i][0]} on address {self.i2cAddressList[i][1]}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Can not communicate with device {self.i2cAddressList[i][0]} on address {self.i2cAddressList[i][1]}")
                     del (self.speHardWareList[i])
                 else:
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Unkown error occured while reading from I2C: {str(e)}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from I2C: {str(e)}")
 
     def readSpecHardWare(self, whichone):
         if whichone == "all":
@@ -355,9 +355,9 @@ class IOArray:
             except Exception as e:
                 print(e)
                 if str(e) == "[Errno 110] ETIMEDOUT":
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Can not communicate with device {self.speHardWareList[index][0]} on pin {self.speHardWareList[index][2]}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Can not communicate with device {self.speHardWareList[index][0]} on pin {self.speHardWareList[index][2]}")
                 else:
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
 
         elif self.speHardWareList[index][1] == "BMP180" or self.speHardWareList[index][1] == "BMP085":
             self.speHardWareList[index][5] = self.speHardWareList[index][4]
@@ -368,9 +368,9 @@ class IOArray:
             except Exception as e:
                 print(e)
                 if str(e) == "[Errno 110] ETIMEDOUT": #ide nem ilyen error for jonni
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Can not communicate with device {self.speHardWareList[index][0]} on pin {self.speHardWareList[index][2]}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Can not communicate with device {self.speHardWareList[index][0]} on pin {self.speHardWareList[index][2]}")
                 else:
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
 
         elif self.speHardWareList[index][1] == "BH1750":
             self.speHardWareList[index][5] = self.speHardWareList[index][4]
@@ -379,9 +379,9 @@ class IOArray:
             except Exception as e:
                 print(e)
                 if str(e) == "[Errno 5] EIO":
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Lost communication with device {self.speHardWareList[index][0]} on address 0x23")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Lost communication with device {self.speHardWareList[index][0]} on address 0x23")
                 else:
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
         elif self.speHardWareList[index][1] == "Rotary":
             self.speHardWareList[index][4] = None
             self.speHardWareList[index][4] = self.speHardWareList[index][3].read()
