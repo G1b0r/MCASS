@@ -16,11 +16,11 @@
    - Broker for the MQTT messaging to be used (Reccomended is to use the one in HASS)  
  - PORT = 1883  
    - Port for the MQTT broker  
- - CONFIGREQUEST = "test/config/request"  
+ - CONFIGREQUEST = "home/config/request"  
    - Topic for the devices to request their config from  
- - CONFIGREPLY = "test/config/reply"  
+ - CONFIGREPLY = "home/config/reply"  
    - Topic where the requested config should be sent  
- - DEVICETOPIC = "test/devices/#"  
+ - DEVICETOPIC = "home/devices/#"  
    - Topic of each device connected  
  - USERNAME = ""  
    - Username for the MQTT broker  
