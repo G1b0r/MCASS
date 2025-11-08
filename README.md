@@ -4,7 +4,7 @@ Modular Control And Sensor System
 
 
 
-###CONFIGURATION.txt entries and their default values:
+### CONFIGURATION.txt entries and their default values:
 
 PROTOCOL_TIMEOUT_SHORT = 0.5
   Time after which frequent protocols are executed
