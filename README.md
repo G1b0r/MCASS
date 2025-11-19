@@ -2,7 +2,10 @@
 
 ## 🦺README.md under construction...🦺
 
+### The inspiration and goal of the project:
 
+
+### Next steps in development (what to be expected):
 
 ### CONFIGURATION.txt entries and their default values:
 
