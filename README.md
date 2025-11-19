@@ -4,7 +4,7 @@
 
 ### The inspiration and goal of the project:
 
-I've gotten into home automatisation and with that into IOT in 2023 and since then i tried to integrate as much of the stufff in our home into Home Assistant as I could. Well it didn't go as easily as I though. A lot of stuff was buggy, got deprecated and lost support or just was bad in the first place, or the devices weren't suitable for the task given to them. So in September of 2025 i got fed up started working on my own system which led to the MCASS Project.  
+I've gotten into home automatisation and with that into IOT in 2023 and since then i tried to integrate as much of the stufff in our home into Home Assistant as I could. Well it didn't go as easily as I though. A lot of stuff was buggy, got deprecated and lost support or was just bad in the first place, or the devices weren't suitable for the task given to them. So in September of 2025 i got fed up started working on my own system which led to the MCASS Project.  
 This project's goal is create an easy to set up, fully modular and heavily customisable system, that is able to monitor and control it's environment.
 
 ### Main features (or them to be):
