@@ -96,7 +96,7 @@ Pinconfig broken up more:
     - 7            *Pin*
 
 # Workflow  
-This section is ment to make the workflow more understandable in a schematic form
+This section is ment to make the code's workflow more understandable in a schematic form
 
 ## Server startup
 
