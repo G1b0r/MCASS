@@ -1,6 +1,16 @@
 # This file was created in order to make both the server and end device side of the workflow be more easily understood, while also clarifying and listing all configuration options 
 
-### CONFIGURATION.txt entries and their default values:
+## CONFIGURATION.txt format, possible entries and their default values:
+
+### Formatting
+  - Each entry has to be written into a new line
+  - Each line consists of 3 parts:
+    - The name of the paramter you want to give:
+      - Start of the line, written in caps lock
+    - "=" separator
+    - And the value you want to set it to
+
+### Possible entries
 
  - PROTOCOL_TIMEOUT_SHORT = 0.5  
    - Time after which frequent protocols are executed  
@@ -34,7 +44,7 @@
    - IP Address of Home Assistant
    - Setting it to "broker" will result in using the IP of the broker. If a different IP is to be used, format it according to BROKER
   
-### Configtable.txt format:
+## Configtable.txt format:
 Each row has the configuration for a device:
   - Every row has to contain 3 main components: the mac address of the device, the topic of the device to use, and the pin configuration
   - Each of the main component is separated by "," characters
