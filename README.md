@@ -4,6 +4,25 @@
 
 ### The inspiration and goal of the project:
 
+I've gotten into home automatisation and with that into IOT in 2023 and since then i tried to integrate as much of the stufff in our home into Home Assistant as I could. Well it didn't go as easily as I though. A lot of stuff was buggy, got deprecated and lost support or just was bad in the first place, or the devices weren't suitable for the task given to them. So in September of 2025 i got fed up started working on my own system which led to the MCASS Project.
+This project's goal is create an easy to set up, fully modular and heavily customisable system, that is able to monitor and control it's environment.
+
+### Main features (or them to be):
+(!!!Some of the lower mentioned features are not implemented yet, but are planned to be in the final version!!!)
+
+On the long run I want to create two main versions of this, with maybe a third option as a hybrid of the first two.
+ - Home Edition
+   - Maybe lose the control server entirely, with integrating into HASS
+   - End devices would use MDNS to find the server and connect to it
+   - Also would use Mosquito built into HASS
+ - Enterprise edition
+   - Two separate brokers
+    - The first one would be responsible for the base configuration the device, and this server would have a fix IP address on every network calculated by a simple algorith (eg: take the 15th avaible IP of the network, or the middle IP of the newtork.)
+    - The second one would be where the actual traffic and communication between the server and end devices would take place. This broker can take any IP
+   - It could be configurable in the server which IP the second broker would be in, and the configuration would be sent via the first broker in the initial configuration of the end device.
+   - Option for backup server that monitors traffic and when detects an outage in the main server it takes over.
+
+### Current standing:
 
 ### Next steps in development (what to be expected):
 
