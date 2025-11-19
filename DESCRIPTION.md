@@ -70,8 +70,7 @@ In the pin configuration section each entry is divided by the "/" character
       - Adding "@EC" at the end of an entry will make so that the end device reads the state every cycle, not just at protocol times
       - This will only affect inputs ("AnalogRead", "DigitalRead", and <SPECHARDWARE>
 
-***Example entry:***  
-*AA-BB-CC-DD-EE-FF,MCASS/devices/doesntexist,Rotary@Rotary@2&3@EC/DHT11@DHT(Sensor)@7*  
+***Example entry:** AA-BB-CC-DD-EE-FF,MCASS/devices/doesntexist,Rotary@Rotary@2&3@EC/DHT11@DHT(Sensor)@7*  
 The 3 main sections:
   - AA-BB-CC-DD-EE-FF
   - MCASS/devices/doesntexist
