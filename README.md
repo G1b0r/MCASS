@@ -24,7 +24,7 @@ On the long run I want to create two main versions of this, with maybe a third o
 
 ### Current standing:
 
-In a few words: Very alpha testing
+In a few words: Very alpha testing. \n
 On the end device part it is a midway and base code currently for the two versions. It is only missing the MDNS and the IP based connection. (It is using a fix programmed IP for testing and development)
 On the server side it's very close to a beta version. The server configuration is avaible, I'm currently working on the HASS side so that all devices are automatically created in HASS via MQTT Discovery.
 
