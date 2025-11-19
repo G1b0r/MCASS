@@ -53,9 +53,9 @@ In the pin configuration section each entry is divided by the "/" character
   - Each entry has to contain type to be configured, the name of the pin, and the number of pin to use
   - Each of these are separated by "@" characters
     - The type has to be the main thing that you would program into a normal program
-      - Can be "AnalogRead", "DigitalRead", "DigitalOut", "PWMOut" or <SPECHARDWARE>
+      - Can be "AnalogRead", "DigitalRead", "DigitalOut", "PWMOut" or SPECHARDWARE
       - SPECHARDWARE: Any hardware that needs separate support, and does not fall in the category of the previous four options (eg: BMP180)
-      - <TBD list of supported hardware>
+      - TBD list of supported hardware
     - Optional domain defining:
       - **Highly recommended in case of using HASS**:
       - You can define the domain to be used in HASS.
@@ -68,7 +68,7 @@ In the pin configuration section each entry is divided by the "/" character
   - Modifiers:
     - EC (Every Cycle)
       - Adding "@EC" at the end of an entry will make so that the end device reads the state every cycle, not just at protocol times
-      - This will only affect inputs ("AnalogRead", "DigitalRead", and <SPECHARDWARE>
+      - This will only affect inputs ("AnalogRead", "DigitalRead", and SPECHARDWARE)
 
 
   
