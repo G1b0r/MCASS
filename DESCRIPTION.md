@@ -72,7 +72,10 @@ In the pin configuration section each entry is divided by the "/" character
 
 
   
-***Example entry:** AA-BB-CC-DD-EE-FF,MCASS/devices/doesntexist,Rotary@Rotary@2&3@EC/DHT11@DHT(Sensor)@7*  
+### Example entry:
+  
+*AA-BB-CC-DD-EE-FF,MCASS/devices/doesntexist,Rotary@Rotary@2&3@EC/DHT11@DHT(Sensor)@7*  
+  
 The 3 main sections:
   - AA-BB-CC-DD-EE-FF
   - MCASS/devices/doesntexist
