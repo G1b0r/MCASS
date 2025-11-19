@@ -47,7 +47,7 @@
 ## Configtable.txt format:
 Each row has the configuration for a device:
   - Every row has to contain 3 main components: the MAC address of the device, the topic of the device to use, and the pin configuration
-  - Each of the main component is separated by "," characters
+  - Each of the main componenta are separated by "," characters
   
 In the pin configuration section each entry is divided by the "/" character
   - Each entry has to contain type to be configured, the name of the pin, and the number of pin to use
