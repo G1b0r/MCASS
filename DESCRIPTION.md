@@ -1,4 +1,4 @@
-
+# This file was created in order to make both the server and end device side of the workflow be more easily understood, while also clarifying and listing all configuration options 
 
 
 ### CONFIGURATION.txt entries and their default values:
