@@ -33,7 +33,8 @@ On the server side it's very close to a beta version. The server configuration i
 Finish the HASS configuration part 
   - Implement the forwarder, which is responsible for forwarding the state and control data from end device to HASS and vice versa
   - Implement the ping function to check the availability of devices and report it to HASS
-  - HASS syncronisation so something got changed in HASS (eg: Icon of entity) it is updated in the server  
+  - HASS syncronisation so something got changed in HASS (eg: Icon of entity) it is updated in the server
+
 Implement some protocols for checking the validity of information on devices (eg: if the software got updated on it)  
 Implement a protocol where it checks if the end device supports a certain sensor, and deal with it appropriately (Currently the end device ignores a not supported hardware if it was given in the config, so there has to be a protocol to ask the end device for what is has a support for (It is stored in the program))
 
