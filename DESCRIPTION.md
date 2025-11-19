@@ -95,7 +95,8 @@ Pinconfig broken up more:
     - (Sensor)     *Domain*
     - 7            *Pin*
 
-# Workflow
+# Workflow  
+This section is ment to make the workflow more understandable in a schematic form
 
 ## Server startup
 
