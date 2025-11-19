@@ -12,9 +12,9 @@ This project's goal is create an easy to set up, fully modular and heavily custo
 
 On the long run I want to create two main versions of this, with maybe a third option as a hybrid of the first two.
  - Home Edition
-   - Maybe lose the control server entirely, with integrating into HASS
+   - Option to take the server seperately or in a HASS integration
    - End devices would use MDNS to find the server and connect to it
-   - Also would use Mosquito built into HASS
+   - Also would use Mosquito built into HASS with no option for seperate broker
  - Enterprise edition
    - Two separate brokers
     - The first one would be responsible for the base configuration the device, and this server would have a fix IP address on every network calculated by a simple algorith (eg: take the 15th avaible IP of the network, or the middle IP of the newtork.)
