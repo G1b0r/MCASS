@@ -8,7 +8,7 @@ I've gotten into home automatisation and with that into IOT in 2023 and since th
 This project's goal is create an easy to set up, fully modular and heavily customisable system, that is able to monitor and control it's environment.
 
 ### Main features (or them to be):
-(!!!Some of the lower mentioned features are not implemented yet, but are planned to be in the final version!!!)
+*(!!!Some of the lower mentioned features are not implemented yet, but are planned to be in the final version!!!)*
 
 On the long run I want to create two main versions of this, with maybe a third option as a hybrid of the first two.
  - Home Edition
