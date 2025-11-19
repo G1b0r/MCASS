@@ -4,7 +4,7 @@
 
 ### The inspiration and goal of the project:
 
-I've gotten into home automatisation and with that into IOT in 2023 and since then i tried to integrate as much of the stufff in our home into Home Assistant as I could. Well it didn't go as easily as I though. A lot of stuff was buggy, got deprecated and lost support or just was bad in the first place, or the devices weren't suitable for the task given to them. So in September of 2025 i got fed up started working on my own system which led to the MCASS Project.
+I've gotten into home automatisation and with that into IOT in 2023 and since then i tried to integrate as much of the stufff in our home into Home Assistant as I could. Well it didn't go as easily as I though. A lot of stuff was buggy, got deprecated and lost support or just was bad in the first place, or the devices weren't suitable for the task given to them. So in September of 2025 i got fed up started working on my own system which led to the MCASS Project.  
 This project's goal is create an easy to set up, fully modular and heavily customisable system, that is able to monitor and control it's environment.
 
 ### Main features (or them to be):
@@ -24,7 +24,7 @@ On the long run I want to create two main versions of this, with maybe a third o
 
 ### Current standing:
 
-In a few words: Very alpha testing. \n
+In a few words: Very alpha testing.  
 On the end device part it is a midway and base code currently for the two versions. It is only missing the MDNS and the IP based connection. (It is using a fix programmed IP for testing and development)
 On the server side it's very close to a beta version. The server configuration is avaible, I'm currently working on the HASS side so that all devices are automatically created in HASS via MQTT Discovery.
 
@@ -34,7 +34,7 @@ Finish the HASS configuration part
   - Implement the forwarder, which is responsible for forwarding the state and control data from end device to HASS and vice versa
   - Implement the ping function to check the availability of devices and report it to HASS
   - HASS syncronisation so something got changed in HASS (eg: Icon of entity) it is updated in the server
-Implement some protocols for checking the validity of information on devices (eg: if the software got updated on it)
+Implement some protocols for checking the validity of information on devices (eg: if the software got updated on it)  
 Implement a protocol where it checks if the end device supports a certain sensor, and deal with it appropriately (Currently the end device ignores a not supported hardware if it was given in the config, so there has to be a protocol to ask the end device for what is has a support for (It is stored in the program))
 
 ### Long term goals: 
@@ -54,8 +54,8 @@ But seriously (not in order):
   - And other ideas that may come with feature requests....
 
 ### Closing notes:
-This project might get the attention of some people and I belive it could be useful for the most of us, so I'm trying my best to allocate as much time to this as I can, but I'm a university student, who is also working a job, so I don't exactly have 12 hours a day that I am able to dedicate to this poject.
-What I want to say that development might be slow but steady, and all I ask for is your patience.
+This project might get the attention of some people and I belive it could be useful for the most of us, so I'm trying my best to allocate as much time to this as I can, but I'm a university student, who is also working a job, so I don't exactly have 12 hours a day that I am able to dedicate to this poject.  
+What I want to say that development might be slow but steady, and all I ask for is your patience.  
 Thank you in advance for using my sofware and for all of your helpful feedbacks!
 
 ### The description for the software workflow and configuration option are found in [DESCRIPTION.md](https://github.com/G1b0r/MCASS/blob/master/DESCRIPTION.md)
