@@ -1,5 +1,7 @@
 # This file was created in order to make both the server and end device side of the workflow be more easily understood, while also clarifying and listing all configuration options 
 
+# Setup options
+
 ## CONFIGURATION.txt format, possible entries and their default values:
 
 ### Formatting
@@ -83,12 +85,26 @@ The 3 main sections:
   
 Pinconfig broken up more:
   - Rotary@Rotary@2&3@EC:
-    - Rotary *Type*
-    - Rotary *Name*
-    - 2&3 *Pins*
-    - EC *Every Cycle modifier*
+    - Rotary       *Type*
+    - Rotary       *Name*
+    - 2&3          *Pins*
+    - EC           *Every Cycle modifier*
   - DHT11@DHT(Sensor)@7
-    - DHT11 *Type*
-    - DHT *Name*
-    - (Sensor) *Domain*
-    - 7 *Pin*
+    - DHT11        *Type*
+    - DHT          *Name*
+    - (Sensor)     *Domain*
+    - 7            *Pin*
+
+# Workflow
+
+## Server startup
+
+## Server self-jobs
+
+## Server OnEvent jobs
+
+## End device startup
+
+## End device self-jobs
+
+## End device OnEvent jobs
