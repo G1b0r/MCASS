@@ -45,6 +45,9 @@
  - HASS = broker
    - IP Address of Home Assistant
    - Setting it to "broker" will result in using the IP of the broker. If a different IP is to be used, format it according to BROKER
+ - MQTTDISCOVERY = "OFF"
+   - Turns MQTT Discovery towards Home Assistant on or off
+   - Can be "ON" or "OFF"
 - L3_EMR = 5
    - Maximum ammount of repetition of individual errors for Gen3 Logger
    - After this ammount within the range the logger won't output it to the file
