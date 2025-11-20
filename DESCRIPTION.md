@@ -45,16 +45,16 @@
  - HASS = broker
    - IP Address of Home Assistant
    - Setting it to "broker" will result in using the IP of the broker. If a different IP is to be used, format it according to BROKER
-- L3EMR = 5
+- L3_EMR = 5
    - Maximum ammount of repetition of individual errors for Gen3 Logger
    - After this ammount within the range the logger won't output it to the file
-- L3EMRW = 50
+- L3_EMRW = 50
    - Maximum ammount of errors to store in memory for Gen3 Logger
    - This is the range in which the repetetion of given error is being searched
    - Reccommend setting this setting according to your setup and the ammount of errors you are getting on a regular basis.  (eg: With every 5 seconds a reccuring error from end device, and 6 errors every minute a setting of 100 with repetition of 5 is good. Of course it would be much for a normal operation, but a good rule of thumb is the ammount of errors that you are certain you would get (over the time of a long protocol) times the ammount of maximum repetititon)
-- L3TOF = 15
+- L3_TOF = 15
    - Ammount of minutes for which an individual warning get ignored and not logged in Gen3 Logger
-- P2MPS = 25
+- P2_MPS = 25
    - Ammount of ping results to store for Gen2 ping function
    - Set this depending on the ammount of devices you have connected
   
