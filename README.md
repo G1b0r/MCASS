@@ -54,6 +54,7 @@ But seriously (not in order):
   - Remote control of end devices, so if it has a config changed it could be updated without the need to restart the device and go there physically (besides changing the hardware)
   - Runtime reconfiguration and restarts both on server and end device side. This way if a configuration got changed (eg: en device got a new sensor) we do not need to restart the entire server or device
   - And other ideas that may come with feature requests....
+  - *Also rework the end device and server side so multisensor (such as the BMP180) are handled on device end. (Currently they are handled on server side which puts unnecessary ammount of load on the server and would probably make it easier if it was handeld on device end. It would still need somethin on the server side but that would be on startup not during runtime, eg the message forwarder takes up a lot of resource just if-else conditions to fin dout which sensor's which value it is and would make a lot of this unnecessary if handled on device end*
 
     
   
