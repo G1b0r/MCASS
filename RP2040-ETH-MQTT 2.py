@@ -9,11 +9,22 @@ import bmp085
 import bh1750
 #import rotary #not used, creating my own implement
 
+
+MANUFACTURER = "Waveshare"
+MODEL = "RP2040ETH"
+HW_VERSION = "n/a"
+SW_VERSION = "0.2"
+CONFIGURL = "https://github.com/G1b0r/MCASS"
+
+
 i2c = ""
 i2c = I2C(id=0, scl=1, sda=0, freq=400000)
 
 #add long protocol for it to check i2c devices, mert ha indukalkor nem ment akkor kiveszi configbol, errol is kene feedback serverbe, de azert kell a protocol hogy ha menet kozben feleled vagy ki lesz cserelve egy mukodore akkor ujrakerje a pinconfigot es a kulonbsegeket ujracsinalja
 #igy futas kozben ha kicserelunk egy alkatreszt akkor nem kell ujrainditani es megjavul "magatol"
+
+#illetve azt is meg kell oldani hogyha boototolaskor nincs net akkor kesobb is tudjon csatlakozni
+#most bebootolt allt vagy 5 percet es utana dugtam be netre de nem csatlakozott fel
 
 #pinconfighoz kikötesek
 #ha van i2c cim akkor legyen scl sda config is, ha nincs send error vagy valamifele ellenorzes
@@ -47,7 +58,6 @@ PASSWORD = "mqtt"
 LASTMESSAGE = time.time_ns()
 
 
-
 DEVICE_MAC = ""#"3C-AB-72-96-52-F4"
 CONFIG_STATUS = [0, 0, 0, 0] #requested config, got config, sent ok on device topic, got acknoledged
 PINCONFIG_STATUS=[0, 0, 0, 0, 0] #requested pinconfig, got config, readback, readback ok received , started pinconfig ez mar az IOArraybol kell jojjon
@@ -55,7 +65,7 @@ PINCONFIG = ""
 # CH9120
 MODE = 1  #0:TCP Server 1:TCP Client 2:UDP Server 3:UDP Client
 GATEWAY = (192, 168, 0, 1)     # GATEWAY
-TARGET_IP = (192, 168, 0, 106)  # TARGET_IP
+TARGET_IP = (192, 168, 0, 150)  # TARGET_IP #106 a normál, #150 a test
 LOCAL_IP = (192, 168, 0, 139)  # LOCAL_IP
 SUBNET_MASK = (255,255,255,0)  # SUBNET_MASK
 LOCAL_PORT1 = 1000             # LOCAL_PORT1
@@ -82,10 +92,10 @@ class rotaryEncoder:
         self.aState = self.pinA.value()
         if self.aState != self.aLastState:
             if self.pinB.value() != self.aState:
-                print("clockwise")
+                #print("clockwise")
                 self.rotation = "Clockwise"
             else:
-                print("counterclokwise")
+                #print("counterclokwise")
                 self.rotation = "Counterclockwise"
 
         self.aLastState = self.aState
@@ -93,9 +103,6 @@ class rotaryEncoder:
 
 
 class IOArray:
-    #need a func to add them to the list
-    #need a func to periodically get data and send them to server
-    #dont send value if value is "value", inicializalashoz kell valami a listaba de lehetseges erteket nem irhatok bele mer szetbaszna a statot
     #maybe do a check hogy ne akarjak ADC-t egy olyan pinen amin nincs adc
 
     #update idea, theres options for pullup/pulldown, maybe add the possibility to define pullup/down in config
@@ -103,6 +110,13 @@ class IOArray:
     #még az i2c nincs meg!!!!!!!
 
     supportedHardWare = ["DHT11", "DHT22", "BMP180", "BMP085", "BH1750", "Rotary"]
+
+    #write in the multiSensors the correct way to correlate with how the values are stored separated via the "/"
+    #so if the value before "/" is a temp here it should be temperature the first one after the type designation
+    multiSensors = [["DHT11", "Temperature", "Humidity"],
+                    ["DHT22", "Temperature", "Humidity"],
+                    ["BMP180", "Temperature", "Pressure"],
+                    ["BMP085", "Temperature", "Pressure"]]
 
     checkEveryCycle = [[], [], [], [], [], []]#ide a nagy listák azon indexe jon amelyiket minden ciklusban akarjuk ellenzorni
     #[EveryanalogInList, EverydigitalInList, EverydigitalOutList, Everyi2cAddressList, EverypwmOutList, EveryspeHardWareList]
@@ -162,7 +176,7 @@ class IOArray:
                 if configList[i].split("@")[-1] == "EC":
                     self.checkEveryCycle[5].append(int(len(self.speHardWareList)-1))
             else:
-                print(f"Unkown IO parameter was given in section: {configList[i]}")
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown IO parameter was given in section: {configList[i]}")
         print(f"\n{self.analogInList}\n{self.digitalInList}\n{self.digitalOutList}\n{self.i2cAddressList}\n{self.pwmOutList}\n{self.speHardWareList}\n")
         self.initAnalogIn()
         self.initDigitalIn()
@@ -219,11 +233,11 @@ class IOArray:
             for i in range(0, len(self.analogInList)):
                 self.analogInList[i][4] = self.analogInList[i][3]
                 self.analogInList[i][3] = self.analogInList[i][2].read_u16()
-                print(f"{self.analogInList[i][0]} with value of {self.analogInList[i][3]}")
+                #print(f"{self.analogInList[i][0]} with value of {self.analogInList[i][3]}")
         else:
             self.analogInList[whichone][4] = self.analogInList[whichone][3]
             self.analogInList[whichone][3] = self.analogInList[whichone][2].read_u16()
-            print(f"{self.analogInList[whichone][0]} with value of {self.analogInList[whichone][3]}")
+            #print(f"{self.analogInList[whichone][0]} with value of {self.analogInList[whichone][3]}")
     #*******************************
     def initDigitalIn(self):
         for i in range(0, len(self.digitalInList)):
@@ -234,11 +248,11 @@ class IOArray:
             for i in range(0, len(self.digitalInList)):
                 self.digitalInList[i][4] = self.digitalInList[i][3]
                 self.digitalInList[i][3] = self.digitalInList[i][2].value()
-                print(f"{self.digitalInList[i][0]} with value of {self.digitalInList[i][3]}")
+                #print(f"{self.digitalInList[i][0]} with value of {self.digitalInList[i][3]}")
         else:
             self.digitalInList[whichone][4] = self.digitalInList[whichone][3]
             self.digitalInList[whichone][3] = self.digitalInList[whichone][2].value()
-            print(f"{self.digitalInList[whichone][0]} with value of {self.digitalInList[whichone][3]}")
+            #print(f"{self.digitalInList[whichone][0]} with value of {self.digitalInList[whichone][3]}")
     #*******************************
     def initDigitalOut(self):
         for i in range(0, len(self.digitalOutList)):
@@ -305,7 +319,7 @@ class IOArray:
                 #i2c.readfrom_into(int(self.i2cAddressList[i][1]), self.i2cByteArray, stop=True)
                 self.i2cRead = i2c.readfrom(int(self.i2cAddressList[i][1]), 8)
                 self.i2cAddressList[i][2] = self.i2cByteArray
-                print(f"{self.i2cAddressList[i][0]} with value of {self.i2cAddressList[i][2]}")
+                #print(f"{self.i2cAddressList[i][0]} with value of {self.i2cAddressList[i][2]}")
             except Exception as e:
                 print(e)
                 if str(e) == "[Errno 5] EIO":
@@ -328,7 +342,7 @@ class IOArray:
                     self.speHardWareList[i][3] = bh1750.BH1750(0x23, i2c)
                 if self.speHardWareList[i][1] == "Rotary":
                     self.speHardWareList[i][3] = rotaryEncoder(self.speHardWareList[i][2].split("&")[0], self.speHardWareList[i][2].split("&")[1])
-                    print(self.speHardWareList[i][3])
+                    #print(self.speHardWareList[i][3])
             except Exception as e:
                 print(e)
                 if str(e) == "[Errno 5] EIO":
@@ -353,11 +367,12 @@ class IOArray:
                 help2=self.speHardWareList[index][3].humidity()
                 self.speHardWareList[index][4] = f"{help1}/{help2}"
             except Exception as e:
-                print(e)
+                #print(e)
                 if str(e) == "[Errno 110] ETIMEDOUT":
                     mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Can not communicate with device {self.speHardWareList[index][0]} on pin {self.speHardWareList[index][2]}")
                 else:
                     mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_AVAILABILITY_OFF:{self.speHardWareList[index][0]},{self.speHardWareList[index][1]}")
 
         elif self.speHardWareList[index][1] == "BMP180" or self.speHardWareList[index][1] == "BMP085":
             self.speHardWareList[index][5] = self.speHardWareList[index][4]
@@ -371,17 +386,19 @@ class IOArray:
                     mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Can not communicate with device {self.speHardWareList[index][0]} on pin {self.speHardWareList[index][2]}")
                 else:
                     mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_AVAILABILITY_OFF:{self.speHardWareList[index][0]},{self.speHardWareList[index][1]}")
 
         elif self.speHardWareList[index][1] == "BH1750":
             self.speHardWareList[index][5] = self.speHardWareList[index][4]
             try:
                 self.speHardWareList[index][4] = self.speHardWareList[index][3].measurement
             except Exception as e:
-                print(e)
+                #print(e)
                 if str(e) == "[Errno 5] EIO":
                     mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Lost communication with device {self.speHardWareList[index][0]} on address 0x23")
                 else:
                     mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown error occured while reading from device {self.speHardWareList[index][0]} with type {self.speHardWareList[index][1]} : {str(e)}")
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_AVAILABILITY_OFF:{self.speHardWareList[index][0]},{self.speHardWareList[index][1]}")
         elif self.speHardWareList[index][1] == "Rotary":
             self.speHardWareList[index][4] = None
             self.speHardWareList[index][4] = self.speHardWareList[index][3].read()
@@ -394,6 +411,19 @@ class IOArray:
         #read I2C
         self.readSpecHardWare("all")
         self.checkForNewData()
+
+    def seperateValuesToSend(self, dName, dType, value):  # used to separate 2 or more values stored together so the server doesnt have to, reduceing load on
+        sensors = []
+        values = value.split("/")
+        for entry in self.multiSensors:
+            if entry[0] == dType:
+                for i in range(1, len(entry)):
+                    sensors.append(entry[i])
+
+        tbr = f"{dName}_{sensors[0]}@{values[0]}"
+        for i in range(1, len(sensors)):
+            tbr = tbr + f"*{dName}_{sensors[i]}@{values[i]}"
+        return(tbr)
 
     def checkForNewData(self):
         for i in range(0, len(self.analogInList)):
@@ -420,18 +450,25 @@ class IOArray:
         for i in range(0, len(self.speHardWareList)):
             if self.speHardWareList[i][1] != "Rotary":
                 if self.speHardWareList[i][4] != self.speHardWareList[i][5]:
-                    self.newValList.append(f"{self.speHardWareList[i][0]}@{self.speHardWareList[i][4]}")
+                    #self.newValList.append(f"{self.speHardWareList[i][0]}@{self.speHardWareList[i][4]}")
+                    sep = self.seperateValuesToSend(self.speHardWareList[i][0], self.speHardWareList[i][1], self.speHardWareList[i][4])
+                    for entry in sep.split("*"): #this way it is handling multiple sensors not just 2, eg: 3 in the form of an accelerometer
+                        self.newValList.append(entry)
                 else:
                     #print(f"No new value for {self.speHardWareList[i][0]}, skipping send data")
                     continue
-                self.speHardWareList[i][4] = self.speHardWareList[i][3] #ez azert kell mert ha nem mér nem upadteolja a prev erteket igy tobbszor elkuldi
+                self.speHardWareList[i][5] = self.speHardWareList[i][4] #ez azert kell mert ha nem mér nem upadteolja a prev erteket igy tobbszor elkuldi
             else:
                 if self.speHardWareList[i][4] != None:
                     self.newValList.append(f"{self.speHardWareList[i][0]}@{self.speHardWareList[i][4]}")
+                else:
+                    continue
 
         for i in range(0, len(self.newValList)):
-            mqtt_client.publish(DEVICE_TOPIC, f"{self.newValList[i]}")
+            mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_VAL:{self.newValList[i]}")
+            time.sleep(0.001)
         self.newValList.clear()
+
     def readEveryCycle(self):
         for i in range(0, len(self.checkEveryCycle)):
             for j in range(0, len(self.checkEveryCycle[i])):
@@ -674,7 +711,7 @@ class MQTTClient:
 
     def publish(self, topic, message):
         global LASTMESSAGE
-        if LASTMESSAGE + 1250000 > time.time_ns():
+        if LASTMESSAGE + 500000 > time.time_ns():
             print("Too fast message burst, waiting .125 seconds")
             time.sleep(0.125)
         publish_message = bytearray([
@@ -690,7 +727,7 @@ class MQTTClient:
         else:
             publish_message[1] = len(publish_message) - 2 #this will break if length is more than ami ebbe a bitbe belefér
             #publish_message.insert(2, bytes([0x01]))
-            print("ittstart")
+            #print("ittstart")
             pubmes = bytearray([0x30])
             pubmes.extend(bytes([0x11]))
             pubmes[1] = len(publish_message) - 2
@@ -949,6 +986,9 @@ if __name__ == "__main__":
                     PINCONFIG_STATUS[2] = 0
                     PROTOCOL_TIME = time.time()
 
+                if message == "PRTCL_GETINFO:SELF":
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_GIVEINFO:MANUFACTURER={MANUFACTURER},MODEL={MODEL},HW_VERSION={HW_VERSION},SW_VERSION={SW_VERSION},CONFIGURL={CONFIGURL}")
+
 ############################################################################################################ new protocol controller
         prot.everyLoop()
         if PROTOCOL_TIME_SHORT < time.time():  # protocol long
@@ -983,7 +1023,12 @@ if __name__ == "__main__":
                     time.sleep_ms(60) # Waiting for the server to respond
                     if mqtt_client.check_heartbeat_response():
                         print("Reconnection successful!")
+                        mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_WARNING: Disconnected from broker, reconnected successfully")
                         break
 
         time.sleep_ms(0) # elozoleg 20 volt de most epp stabilabb az uart olvasas
+
+
+
+
 
