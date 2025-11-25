@@ -63,4 +63,4 @@ This project might get the attention of some people and I belive it could be use
 What I want to say that development might be slow but steady, and all I ask for is your patience.  
 Thank you in advance for using my sofware and for all of your helpful feedbacks!
 
-### The description for the software workflow and configuration options are found in [DESCRIPTION.md](https://github.com/G1b0r/MCASS/blob/master/DESCRIPTION.md)
+### The description for the configuration options and software workflow are found in [DESCRIPTION.md](https://github.com/G1b0r/MCASS/blob/master/DESCRIPTION.md)
