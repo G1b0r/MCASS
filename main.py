@@ -20,7 +20,6 @@ PROTOCOL_TIME = 0
 PROTOCOL_TIME_LONG = 0
 
 TBCCONFLICTHANDLE = "error"  # options are "error"/"delete"
-# hozza kell adni a device confighoz az ID-t amivel mqttre felcsatlakozi
 
 
 def setpts():
@@ -342,6 +341,18 @@ with open("configtable.txt", 'a+', encoding='UTF-8') as cfile:  # a+: Read and a
                         configtable[-1][2] = templine
                     else:
                         nameshelp.append(sensorname)
+
+            existing_topics = []
+            matchcount = 0
+            for entry in configtable:
+                existing_topics.append(entry[1])
+            for et in existing_topics:
+                if configtable[-1][1] == et:
+                    matchcount += 1
+            if matchcount > 1:
+                tobedeleted = True
+                log.error(f"Duplicate device topic in line {linecount}. Removing from configtable")
+
 
             log.console(configtable[-1])
 
