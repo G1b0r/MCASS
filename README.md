@@ -1,7 +1,5 @@
 # Modular Control And Sensor System
 
-## 🦺README.md under construction...🦺
-
 ### The inspiration and goal of the project:
 
 I've gotten into home automatisation and with that into IOT in 2023 and since then i tried to integrate as much of the stufff in our home into Home Assistant as I could. Well it didn't go as easily as I though. A lot of stuff was buggy, got deprecated and lost support or was just bad in the first place, or the devices weren't suitable for the task given to them. So in September of 2025 I got fed up started working on my own system which led to the MCASS Project.  
