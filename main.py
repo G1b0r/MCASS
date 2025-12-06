@@ -1,6 +1,4 @@
 # import setuptools.msvc  # nem tudom mi ez vagy hogy miert van itt
-import threading
-
 from paho.mqtt import client as mqtt
 import time
 # for logger
@@ -11,9 +9,9 @@ import inspect
 import os
 # for hass comm
 from requests import get
-#multithreading
+# multithreading
 import threading
-
+finishedStartup = False
 SyncOnlyWhenOnTestServer = True  # csak akkor syneljen hassba ha a test serveren van ezt kulon en adtam meg majd el kell tavolitani, ONLY FOR DEVELOPMENT
 
 PROTOCOL_TIMEOUT_SHORT = 0.5
@@ -24,6 +22,8 @@ PROTOCOL_TIME = 0
 PROTOCOL_TIME_LONG = 0
 
 TBCCONFLICTHANDLE = "error"  # options are "error"/"delete"
+
+webcontrol = True
 
 
 def setpts():
@@ -160,6 +160,11 @@ class Logger3:
         file.close()
         self.info("Started Logger3...")
 
+    @staticmethod
+    def forwardToWeb(info, level):
+        if finishedStartup:
+            add_log(info, level)  # for sending logs to webpage
+
     def console(self, info):  # print to console only
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
@@ -168,6 +173,7 @@ class Logger3:
         file.close()
 
     def info(self, info):
+        self.forwardToWeb(info, "info")
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
@@ -193,6 +199,7 @@ class Logger3:
                 isalreadyin = True
         # ---- END OF LOGIC TO NOT SEND MULTIPLES WITHIN TIME ---- #
         if isalreadyin is False:
+            self.forwardToWeb(info, "warning")
             print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
             file = open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8")
             file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
@@ -216,6 +223,7 @@ class Logger3:
                 count += 1
         # ---- END OF LOGIC TO NOT SEND MULTIPLES WITHIN LAST X ---- #
         if count < self.error_max_rep + 1:
+            self.forwardToWeb(info, "error")
             print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
             file = open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8")
             file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
@@ -288,6 +296,11 @@ with open("CONFIGURATION.txt", "a+", encoding='UTF-8') as configfile:
                 P2max_ping_storage = linecontent.split("=")[1]
             elif linecontent.split("=")[0] == "MQTTDISCOVERY":
                 HaState = linecontent.split("=")[1]
+            elif linecontent.split("=")[0] == "WEBCONTROL":
+                if linecontent.split("=")[1] == "ON":
+                    webcontrol = True
+                elif linecontent.split("=")[1] == "OFF":
+                    webcontrol = False
 
             else:
                 log.error(f"Unkown variable given in CONIGURATION.txt at line {linecount} in the form of {linecontent}")
@@ -297,83 +310,94 @@ if HassIP == "":
 
 
 log.info("Loading device configurations...")
-with open("configtable.txt", 'a+', encoding='UTF-8') as cfile:  # a+: Read and append. Pointer at end. Creates file if it doesn't exist. was 'r' earlier
-    cfile.seek(0)
-    linecount = 0  # sorok számozása
-    while line := cfile.readline():
-        linecount += 1  # sor szám +1
-        tobedeleted = False  # alapra állít a sor törlése
-        log.console(line.rstrip())
-        if len(line.rstrip().split(",")) < 2:  # ha nincs vessző, szóval valami biztos hiányzik
-            log.error(f"Config invalid, not enough arguments in line {linecount}")
-        else:
-            configtable.append(line.rstrip().split(","))
-            if len(configtable[-1]) == 2:  # ha nincs megadva pincofnig set it to none
-                configtable[-1].append("None")
-            if len(configtable[-1][2]) == 0:  # ha van vessző de nincs irva semmi a pincofig reszhez set it to none
-                configtable[-1][2] = "None"
-            if len(configtable[-1][0]) != 17:  # ha a mac cim nem 17 karakter hosszu
-                log.error(f"Mac address length is too short in line {linecount} with argument {configtable[-1][0]}")
-                tobedeleted = True
+def loadConfigTable():
+    with open("configtable.txt", 'a+', encoding='UTF-8') as cfile:  # a+: Read and append. Pointer at end. Creates file if it doesn't exist. was 'r' earlier
+        cfile.seek(0)
+        linecount = 0  # sorok számozása
+        while line := cfile.readline():
+            linecount += 1  # sor szám +1
+            tobedeleted = False  # alapra állít a sor törlése
+            log.console(line.rstrip())
+            if len(line.rstrip().split(",")) < 2:  # ha nincs vessző, szóval valami biztos hiányzik
+                log.error(f"Config invalid, not enough arguments in line {linecount}")
             else:
-                if configtable[-1][0][2] == ":" and configtable[-1][0][5] == ":" and configtable[-1][0][8] == ":" and configtable[-1][0][11] == ":" and configtable[-1][0][14] == ":":  # ha kettospontal van elválasztva rakja át kotojelre
-                    log.warning(f'Mac address format mismatch, converting ":" to "-" in {configtable[-1][0]} at line {linecount }')
-                    configtable[-1][0] = configtable[-1][0].replace(":", "-")
-                if configtable[-1][0].count("-") != 5:  # ha nem 5 darab separator van
-                    log.error(f"Mac address segment separators count is incorrect in line {linecount} with argument {configtable[-1][0]}")
+                configtable.append(line.rstrip().split(","))
+                if len(configtable[-1]) == 2:  # ha nincs megadva pincofnig set it to none
+                    configtable[-1].append("None")
+                if len(configtable[-1][2]) == 0:  # ha van vessző de nincs irva semmi a pincofig reszhez set it to none
+                    configtable[-1][2] = "None"
+                if len(configtable[-1][0]) != 17:  # ha a mac cim nem 17 karakter hosszu
+                    log.error(f"Mac address length is too short in line {linecount} with argument {configtable[-1][0]}")
                     tobedeleted = True
-                for i in range(1, 18):
-                    if i % 3 == 0:
-                        if configtable[-1][0][i-1] != "-":
-                            log.error(f"Mac address segment separators are incorrect in line {linecount} with argument {configtable[-1][0]}")
-                            tobedeleted = True
-                            break
-                    else:
-                        if (configtable[-1][0][i-1] < '0' or configtable[-1][0][i-1] > '9') and (configtable[-1][0][i-1] < 'A' or configtable[-1][0][i-1] > 'F'):
-                            log.error(f"Mac address contains non hex characters in line {linecount} with argument {configtable[-1][0]}")
-                            tobedeleted = True
-                            break
-            nameshelp = []
-            templine = ""
-            tobereplaced = ""
-            for sensor in configtable[-1][2].split("/"):
-                if len(sensor.split("@")) > 2:
-                    alreadyin = False
-                    if len(sensor.split("(")) < 2:  # no domain
-                        sensorname = sensor.split("@")[1]
-                    elif len(sensor.split("(")) == 2:
-                        sensorname = sensor.split("@")[1].split("(")[0]
-                    for entry in nameshelp:
-                        if entry == sensorname:
-                            alreadyin = True
-                    if alreadyin:  # old was if alreadyin == True de az True == True szoval igy egyzserubb
-                        log.error(f"Sensor with name {sensorname} already exist, removing from pinconfig")
-                        print(len(configtable[-1][2].split(f"/{sensor}")))
-                        if len(configtable[-1][2].split(f"/{sensor}")) > 2:
-                            templine = f'{configtable[-1][2].split(f"/{sensor}")[0]}/{sensor}{configtable[-1][2].split(f"/{sensor}")[1].replace(f"/{sensor}", "")}'
-                        elif len(configtable[-1][2].split(f"/{sensor}")) < 3:
-                            templine = configtable[-1][2].replace(f"/{sensor}", "")
-                        configtable[-1][2] = templine
-                    else:
-                        nameshelp.append(sensorname)
+                else:
+                    if configtable[-1][0][2] == ":" and configtable[-1][0][5] == ":" and configtable[-1][0][8] == ":" and configtable[-1][0][11] == ":" and configtable[-1][0][14] == ":":  # ha kettospontal van elválasztva rakja át kotojelre
+                        log.warning(f'Mac address format mismatch, converting ":" to "-" in {configtable[-1][0]} at line {linecount }')
+                        configtable[-1][0] = configtable[-1][0].replace(":", "-")
+                    if configtable[-1][0].count("-") != 5:  # ha nem 5 darab separator van
+                        log.error(f"Mac address segment separators count is incorrect in line {linecount} with argument {configtable[-1][0]}")
+                        tobedeleted = True
+                    for i in range(1, 18):
+                        if i % 3 == 0:
+                            if configtable[-1][0][i-1] != "-":
+                                log.error(f"Mac address segment separators are incorrect in line {linecount} with argument {configtable[-1][0]}")
+                                tobedeleted = True
+                                break
+                        else:
+                            if (configtable[-1][0][i-1] < '0' or configtable[-1][0][i-1] > '9') and (configtable[-1][0][i-1] < 'A' or configtable[-1][0][i-1] > 'F'):
+                                log.error(f"Mac address contains non hex characters in line {linecount} with argument {configtable[-1][0]}")
+                                tobedeleted = True
+                                break
+                nameshelp = []
+                templine = ""
+                tobereplaced = ""
+                for sensor in configtable[-1][2].split("/"):
+                    if len(sensor.split("@")) > 2:
+                        alreadyin = False
+                        if len(sensor.split("(")) < 2:  # no domain
+                            sensorname = sensor.split("@")[1]
+                        elif len(sensor.split("(")) == 2:
+                            sensorname = sensor.split("@")[1].split("(")[0]
+                        for entry in nameshelp:
+                            if entry == sensorname:
+                                alreadyin = True
+                        if alreadyin:  # old was if alreadyin == True de az True == True szoval igy egyzserubb
+                            log.error(f"Sensor with name {sensorname} already exist, removing from pinconfig")
+                            print(len(configtable[-1][2].split(f"/{sensor}")))
+                            if len(configtable[-1][2].split(f"/{sensor}")) > 2:
+                                templine = f'{configtable[-1][2].split(f"/{sensor}")[0]}/{sensor}{configtable[-1][2].split(f"/{sensor}")[1].replace(f"/{sensor}", "")}'
+                            elif len(configtable[-1][2].split(f"/{sensor}")) < 3:
+                                templine = configtable[-1][2].replace(f"/{sensor}", "")
+                            configtable[-1][2] = templine
+                        else:
+                            nameshelp.append(sensorname)
 
-            existing_topics = []
-            matchcount = 0
-            for entry in configtable:
-                existing_topics.append(entry[1])
-            for et in existing_topics:
-                if configtable[-1][1] == et:
-                    matchcount += 1
-            if matchcount > 1:
-                tobedeleted = True
-                log.error(f"Duplicate device topic in line {linecount}. Removing from configtable")
+                existing_topics = []
+                matchcount = 0
+                for entry in configtable:
+                    existing_topics.append(entry[1])
+                for et in existing_topics:
+                    if configtable[-1][1] == et:
+                        matchcount += 1
+                if matchcount > 1:
+                    tobedeleted = True
+                    log.error(f"Duplicate device topic in line {linecount}. Removing from configtable")
 
 
-            log.console(configtable[-1])
+                log.console(configtable[-1])
 
-        if tobedeleted:
-            del configtable[-1]
+            if tobedeleted:
+                del configtable[-1]
+loadConfigTable()
 
+def reloadConfigTable():
+    try:
+        global configtable
+        configtable = []
+        loadConfigTable()
+        return "OK"
+    except Exception as e:
+        log.error(f"Error occured while reloading configtable.txt: {e}")
+        return "ERROR"
 # ha configfileba van es tbcbe is akkor vagy error vagy vegye ki tbcbol
 # readback of tbc and send error for them
 log.console(configtable)
@@ -1340,7 +1364,7 @@ log.info("Starting MQTT...")
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
 client.username_pw_set(username=username, password=password)
 
-log.info("Trying to connect to server:")
+log.info(f"Trying to connect to server: {broker}")
 while True:
     try:
         client.connect(broker, port)
@@ -1550,6 +1574,7 @@ isFinished = False
 
 def runTimeLoop():
     log.info("Started runtime loop")
+    global isFinished
     while True:  # loop
         if PROTOCOL_TIME_SHORT < time.time():  # protocol long
             setpts()
@@ -1609,5 +1634,114 @@ def runTimeLoop():
 loop = threading.Thread(target=runTimeLoop)
 loop.start()
 # *****************************************************************************************************************************************************************************************************************
-
 # client.loop_stop()
+
+
+# WEBPAGE PART ------------------------------
+import json
+from http.server import SimpleHTTPRequestHandler, HTTPServer
+# from urllib.parse import urlparse, parse_qs
+
+LOG_HISTORY = []
+
+def add_log(message, tag):
+    timestamp = time.strftime("%H:%M:%S")
+    entry = f"[{tag.upper()}] [{timestamp}]: {message}"
+    LOG_HISTORY.append(entry)
+    #print(entry)
+
+
+class MyHandler(SimpleHTTPRequestHandler):
+    def do_POST(self):
+        """Handles POST commands coming from the webpage"""
+        if self.path == "/command":
+            length = int(self.headers.get("Content-Length"))
+            body = self.rfile.read(length)
+            data = json.loads(body.decode("utf-8"))
+            cmd = data.get("cmd", "")
+
+            # --- COMMAND HANDLING HERE ---
+            try:
+                add_log(f"Received command: {cmd}", "info")
+                log.info(f"Received command from web control: {cmd}")
+
+                '''if cmd == "start":
+                    add_log("System started!", "info")
+                    response = {"status": "success", "detail": "System started"}
+
+                elif cmd == "stop":
+                    add_log("System stopped.", "info")
+                    response = {"status": "success", "detail": "System stopped"}
+
+                elif cmd == "reset":
+                    add_log("System reset.", "info")
+                    response = {"status": "success", "detail": "System reset"}
+
+                elif cmd == "status":
+                    add_log("Status checked.", "info")
+                    response = {"status": "success", "detail": "System OK"}'''
+
+                if cmd == "reloadconfigtable":
+                    add_log("Reloading configtable data", "info")
+                    result = reloadConfigTable()
+                    if result == "OK":
+                        response = {"status": "success", "detail": "Reloaded successfully"}
+                    if result == "ERROR":
+                        response = {"status": "error", "detail": "Error while reading configtable"}
+
+                else:
+                    #add_log("Unknown command.", "error")
+                    log.error("Unknown command provided from web interface")
+                    response = {"status": "error", "detail": "Unknown command"}
+
+            except Exception as e:
+                add_log(f"Error: {str(e)}", "error")
+                response = {"status": "error", "detail": str(e)}
+
+            # Send JSON back
+            encoded = json.dumps(response).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        else:
+            self.send_error(404)
+
+    def do_GET(self):
+        """Serve HTML/JS files AND the log polling endpoint"""
+        if self.path == "/logs":
+            # Return the last 50 log entries
+            log_data = {"logs": LOG_HISTORY[-50:]}
+
+            encoded = json.dumps(log_data).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        else:
+            # Serve files from current directory (index.html, etc.)
+            return super().do_GET()
+
+    def log_message(self, format, *args): # this is only here to disable the constant http request prints to console
+        pass
+
+
+def run_server():
+    log.info("Starting webserver")
+    port = 8000
+    print(f"Serving at http://localhost:{port}")
+    httpd = HTTPServer(("0.0.0.0", port), MyHandler)
+    httpd.serve_forever()
+
+if webcontrol == True:
+    webserver = threading.Thread(target= run_server)
+    webserver.start()
+else:
+    log.info("Web control disabled, skipping web start")
+
+finishedStartup = True
+log.info("Finished startup")

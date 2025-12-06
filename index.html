@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MCASS Control Panel</title>
+    <style>
+        body { font-family: Arial; margin: 40px; max-width: 600px; }
+        button {
+            padding: 10px 20px;
+            margin: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #log {
+            width: 100%;
+            height: 250px;
+            border: 1px solid #333;
+            padding: 10px;
+            overflow-y: auto;
+            background: #eee;
+        }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<h2>Python Control Panel</h2>
+
+<!--<button onclick="sendCommand('start')">Start</button>
+<button onclick="sendCommand('stop')">Stop</button>
+<button onclick="sendCommand('reset')">Reset</button>
+<button onclick="sendCommand('status')">Check Status</button>
+<br>-->
+<button onclick="sendCommand('reloadconfigtable')">Reload configtable</button>
+
+
+
+<p id="result"></p>
+
+<h3>Log Output</h3>
+<div id="log"></div>
+
+<script>
+    async function sendCommand(cmd) {
+        const resElem = document.getElementById("result");
+
+        const response = await fetch("/command", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ cmd })
+        });
+
+        const data = await response.json();
+
+        if (data.status === "success") {
+            resElem.innerHTML = `<span class="success">${data.detail}</span>`;
+        } else {
+            resElem.innerHTML = `<span class="error">${data.detail}</span>`;
+        }
+    }
+
+    async function updateLogs() {
+        const response = await fetch("/logs");
+        const data = await response.json();
+
+        const logDiv = document.getElementById("log");
+        logDiv.innerHTML = data.logs.join("<br>");
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // Auto-refresh log every 1 second
+    setInterval(updateLogs, 1000);
+</script>
+
+</body>
+</html>
