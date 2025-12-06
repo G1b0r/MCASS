@@ -13,7 +13,7 @@ import bh1750
 MANUFACTURER = "Waveshare"
 MODEL = "RP2040ETH"
 HW_VERSION = "n/a"
-SW_VERSION = "0.2"
+SW_VERSION = "0.3"
 CONFIGURL = "https://github.com/G1b0r/MCASS"
 
 
@@ -176,18 +176,20 @@ class IOArray:
                 if configList[i].split("@")[-1] == "EC":
                     self.checkEveryCycle[5].append(int(len(self.speHardWareList)-1))
             else:
-                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown IO parameter was given in section: {configList[i]}")
+                mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:The hardware in section {configList[i]} is not yet supported by this board ({MANUFACTURER} {MODEL})")
+                #mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR:Unkown IO parameter was given in section: {configList[i]}") #old error message
         print(f"\n{self.analogInList}\n{self.digitalInList}\n{self.digitalOutList}\n{self.i2cAddressList}\n{self.pwmOutList}\n{self.speHardWareList}\n")
         self.initAnalogIn()
         self.initDigitalIn()
         self.initDigitalOut()
         self.initPWMOut()
         self.initSpecHardWare()
-        if not self.i2cAddressList: #ha ures
-            mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_WARNING:No I2C address was provided, skipping init...")
-        else:
+        '''if not self.i2cAddressList: #ha ures'''
+        if self.SCL != self.SDA:
             self.initI2C()
             self.scanI2C()
+        else:
+            mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_LOG_ERROR: Can't initialize I2C, SCL and SDA are defined on the same pin")
         print(self.checkEveryCycle)
 
 
@@ -480,6 +482,39 @@ class IOArray:
                     self.readSpecHardWare(self.checkEveryCycle[i][j])
         self.checkForNewData()
 
+    def forceValues(self):
+        self.readAnalog("all")
+        self.readDigital("all")
+        self.readI2C()
+        #read I2C
+        self.readSpecHardWare("all")
+
+        for i in range(0, len(self.analogInList)):
+            if self.analogInList[i][4] != "lastval":
+                self.newValList.append(f"{self.analogInList[i][0]}@{self.analogInList[i][3]}")
+            else:
+                #print(f"No new value for {self.analogInList[i][0]}, skipping send data")
+                continue
+            self.analogInList[i][4] = self.analogInList[i][3] #ez azert kell mert ha nem mér nem upadteolja a prev erteket igy tobbszor elkuldi
+        for i in range(0, len(self.digitalInList)):
+            if self.digitalInList[i][4] != "lastval":
+                self.newValList.append(f"{self.digitalInList[i][0]}@{self.digitalInList[i][3]}")
+            else:
+                #print(f"No new value for {self.digitalInList[i][0]}, skipping send data")
+                continue
+            self.digitalInList[i][4] = self.digitalInList[i][3] #ez azert kell mert ha nem mér nem upadteolja a prev erteket igy tobbszor elkuldi
+        #send data
+        for i in range(0, len(self.speHardWareList)):
+            if self.speHardWareList[i][1] != "Rotary":
+                continue
+            else:
+                self.newValList.append(f"{self.speHardWareList[i][0]}@{self.speHardWareList[i][4]}")
+
+        for i in range(0, len(self.newValList)):
+            mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_VAL:{self.newValList[i]}")
+            time.sleep(0.001)
+        self.newValList.clear()
+
 
 class ProtocolBook:
     protocollist = []  # protocollist=[protpointer, protname, type(short,normal,long)]
@@ -581,10 +616,9 @@ class ProtocolBook:
         if CONFIG_STATUS[3] == 1:#csak akkor kerje a pinconfigot ha mar teljesult az mqtt config
 
             if PINCONFIG_STATUS[3] == 1 and PINCONFIG_STATUS[4] == 0:
-                print("pinconfig ok, start pinconfig on hardware")
+                print("pinconfig status ok, start pinconfig on hardware")
                 print(PINCONFIG)
                 IOArray.autoSetup(PINCONFIG)
-
             if PINCONFIG_STATUS[2] == 1 and PINCONFIG_STATUS[3] == 0: #no ack of readback yet
                 mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_READBACK:{PINCONFIG}")
 
@@ -908,6 +942,11 @@ def ch9120_configure():
     time.sleep(0.5)
     uart1 = UART(1, baudrate=115200, tx=Pin(20), rx=Pin(21))
 
+def checkData(inp):
+    if inp.split(",")[0] == MANUFACTURER and inp.split(",")[1] == MODEL and inp.split(",")[2] == HW_VERSION and inp.split(",")[3] == SW_VERSION and inp.split(",")[4] == CONFIGURL:
+        return True
+    else:
+        return False
 
 '''
 IOarray = IOArray()
@@ -988,6 +1027,13 @@ if __name__ == "__main__":
 
                 if message == "PRTCL_GETINFO:SELF":
                     mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_GIVEINFO:MANUFACTURER={MANUFACTURER},MODEL={MODEL},HW_VERSION={HW_VERSION},SW_VERSION={SW_VERSION},CONFIGURL={CONFIGURL}")
+                if "PRTCL_DVC_ASK:" in message:
+                    if checkData(message.split(":")[1]) is True:
+                        mqtt_client.publish(DEVICE_TOPIC, "PRTCL_DVC_OK")
+                    else:
+                        mqtt_client.publish(DEVICE_TOPIC, "PRTCL_DVC_FAIL")
+                if message == "PRTCL_FORCEVALUES":
+                    IOArray.forceValues()
 
 ############################################################################################################ new protocol controller
         prot.everyLoop()
@@ -1027,8 +1073,3 @@ if __name__ == "__main__":
                         break
 
         time.sleep_ms(0) # elozoleg 20 volt de most epp stabilabb az uart olvasas
-
-
-
-
-

@@ -1,4 +1,6 @@
 # import setuptools.msvc  # nem tudom mi ez vagy hogy miert van itt
+import threading
+
 from paho.mqtt import client as mqtt
 import time
 # for logger
@@ -9,6 +11,8 @@ import inspect
 import os
 # for hass comm
 from requests import get
+#multithreading
+import threading
 
 SyncOnlyWhenOnTestServer = True  # csak akkor syneljen hassba ha a test serveren van ezt kulon en adtam meg majd el kell tavolitani, ONLY FOR DEVELOPMENT
 
@@ -219,6 +223,17 @@ class Logger3:
             file = open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8")
             file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
             file.close()
+
+    def inLastX(self, x, text):
+        lastlines = []
+        with open(f"{self.filepath}{self.filename}_log3.txt", encoding='UTF-8') as file:
+            for line in (file.readlines() [-x:]):
+                #print(line, end ='')
+                lastlines.append(line)
+        for line in lastlines:
+            if text in line:
+                return True
+        return False
 
 
 log = Logger3()
@@ -493,11 +508,8 @@ class HASS:
     # send json data to create and modify device
     # send empty to delete device
 
-    #kesz egy passziv availability check, ha eszkoz probalja olvasni de nem sikerul az error mellet visszakuld egy uzit h not avaible, ezt kene kiboviteni egy actival h rakerdez a szerver es ugy megnezi mindegyik sensort esetleg
+    # IDEA BUT I DONT I WILL DO IT CAUSE ITS NOT NEEDED   #kesz egy passziv availability check, ha eszkoz probalja olvasni de nem sikerul az error mellet visszakuld egy uzit h not avaible, ezt kene kiboviteni egy actival h rakerdez a szerver es ugy megnezi mindegyik sensort esetleg
 
-    #we also need a protocol (probably on device end) to check if the servers data is correct regarding the device
-    # (pl old sw_version got init, but since then got updated and the server should know)
-    #ezt bovitve egy olyan is kell hogy a supported hardware is klappol e (pl az rpn van supportolva az nfc olvaso, de itt meg nincs naki default data megadva akkor az kideruljon, mondjuk egy warning vagy error formajaban, just some self.check
 
     def JSONdispatch(self, params):
         if params[0] == "SENSOR":
@@ -522,7 +534,7 @@ class HASS:
             icon = "mdi:leak"
         return(f'"platform":"binary_sensor","icon":"{icon}","name":"{name}","unique_id":"{unique_id}","state_topic":"{state_topic}","availability":' + '{' + f'"topic":"{availability_topic}"' + '}')  # entity categroyt ki kellett venni mert nem ment tole a discovery ("entity_category":"{entity_category}",)
 
-    def returnLightJSON(self, name, unique_id, state_topic, entity_category, icon, availability_topic):  # rgb not supported
+    def returnLightJSON(self, name, unique_id, state_topic, entity_category, icon, availability_topic):  # rgb not supported és implementalni rendesen
         if icon == "ICON":
             icon = "mdi:lightbulb"
         return(f'"platform":"light","icon":"{icon}","name":"{name}","unique_id":"{unique_id}","state_topic":"{state_topic}","brightness_command_topic":"{state_topic}/brightness_command","brightness_state_topic":"{state_topic}/brightness_state","command_topic":"{state_topic}/command","availability":' + '{' + f'"topic":"{availability_topic}"' + '}')  # entity categroyt ki kellett venni mert nem ment tole a discovery ("entity_category":"{entity_category}",)
@@ -591,7 +603,7 @@ class HASS:
             else:
                 log.error(f"Unkown domain type given in hassImportData in the form of {entry}")
 
-    def reloadData(self):  # should create a backup of hassImportData before updateing so if the new one would corrupt, manual rollback would be possible
+    def reloadData(self):
         self.loadedData = []
         self.devices = []
         self.entities = []
@@ -752,7 +764,7 @@ class HASS:
 
     def sendToHassIndex(self, index):
         entity = self.entities[index]
-        entitydata = self.JSONdispatch(entity)  # self.returnSensorJSON(entity[1],entity[2],entity[3],entity[4],entity[5],entity[6],entity[7])
+        entitydata = self.JSONdispatch(entity)
         mac = entity[2].split("_")[1]
         parentDevice = ""
         for device in self.devices:
@@ -1081,12 +1093,20 @@ class HASS:
 
     def getAvailabilityTopic(self, SensorName, Device, Domain):
         for entry in self.entities:
-            if Domain != "":  # ha megvan a domain is
-                if entry[1] == SensorName and entry[0] == Domain.upper() and entry[2] == f"mcass_{Device.lower()}_{SensorName}":
-                    return entry[7]
-            else:  # ha nics domain
-                if entry[1] == SensorName and entry[2] == f"mcass_{Device.lower()}_{SensorName}":
-                    return entry[7]
+            if entry[0] == "SENSOR":
+                if Domain != "":  # ha megvan a domain is
+                    if entry[1] == SensorName and entry[0] == Domain.upper() and entry[2] == f"mcass_{Device.lower()}_{SensorName}":
+                        return entry[7]
+                else:  # ha nics domain
+                    if entry[1] == SensorName and entry[2] == f"mcass_{Device.lower()}_{SensorName}":
+                        return entry[7]
+            else:
+                if Domain != "":  # ha megvan a domain is
+                    if entry[1] == SensorName and entry[0] == Domain.upper() and entry[2] == f"mcass_{Device.lower()}_{SensorName}":
+                        return entry[6]
+                else:  # ha nics domain
+                    if entry[1] == SensorName and entry[2] == f"mcass_{Device.lower()}_{SensorName}":
+                        return entry[6]
 
     def getSubSensors(self, SensorName, Device, Domain):
         tbrnames = []
@@ -1101,6 +1121,11 @@ class HASS:
         if len(tbrnames) < 2:  # ha simplasensor pl bh1750
             return SensorName
         return tbrnames
+
+    def getDeviceDatas(self, mac):
+        for device in self.devices:
+            if mac == device[1].replace("MCASS_", ""):
+                return(device[3],device[4],device[5],device[6],device[7])
 
 
 if HaState == "ON":
@@ -1125,7 +1150,7 @@ class ProtocolBook:
     def __init__(self):
         var = 1
         for protocol in dir(ProtocolBook):
-            if "__" not in protocol and protocol != "protShort" and protocol != "protNorm" and protocol != "protLong" and protocol != "protocollist" and protocol != "protDict" and protocol != "everyLoop":
+            if "__" not in protocol and protocol != "protShort" and protocol != "protNorm" and protocol != "protLong" and protocol != "protocollist" and protocol != "protDict" and protocol != "everyLoop" and protocol != "dailyCheck":
                 attr = getattr(ProtocolBook, protocol)
                 if protocol[-1] == "s":
                     self.protocollist.append(str(f"{var}*{protocol}*short").split("*"))
@@ -1138,6 +1163,9 @@ class ProtocolBook:
                     self.protDict[str(var)] = attr
                 elif protocol[-1] == "e":
                     self.protocollist.append(str(f"{var}*{protocol}*every").split("*"))
+                    self.protDict[str(var)] = attr
+                elif protocol[-1] == "d": #daily
+                    self.protocollist.append(str(f"{var}*{protocol}*daily").split("*"))
                     self.protDict[str(var)] = attr
                 else:
                     log.error(f"Unkown protocoltype defined in {protocol}")
@@ -1206,6 +1234,12 @@ class ProtocolBook:
             if self.protocollist[i][2] == "every":
                 # log.console("Executes protocols every loop")
                 self.protDict[self.protocollist[i][0]](self, "none")
+    def dailyCheck(self):
+        for i in range(0, len(self.protocollist)):
+            if self.protocollist[i][2] == "daily":
+                # log.console("Executes protocols daily")
+                self.protDict[self.protocollist[i][0]](self, "none")
+        isFinished = True
 
     def frequencyCheckern(self, command):  # !!!!!! lentebb egy ifbe ez a név van ctrl+c ctrl+v-zve, ha itt atirod ird at ott is
         if command == "getID":
@@ -1289,6 +1323,14 @@ class ProtocolBook:
         if command == "getID":
             return "HA6"
         ha.syncIconFromHass()
+
+    def checkDataValidityd(self, command):
+        if command == "getID":
+            return "DVC"
+        for entry in configtable:
+            datas = ha.getDeviceDatas(entry[0])
+            client.publish(entry[1], f"PRTCL_DVC_ASK:{datas[0]},{datas[1]},{datas[2]},{datas[3]},{datas[4]}")
+            time.sleep(15)
 
 
 log.info("Starting ProtocolBook...")
@@ -1448,8 +1490,15 @@ def on_message(client, userData, msg):
                 topic = ha.getStatusTopic(SensorName, Device, Domain)
                 availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
                 if topic is not None:
+                    inlastAmm = 5 #might have to set higher if using multiple devices
                     client.publish(topic, value)
                     client.publish(availtopic, "online")
+                    #check if device failed previoulsy
+                    #if yes
+                    #send forceAllSensorValues
+                    if log.inLastX(inlastAmm, f"Availability check failed for device mcass{Device.lower()}") is True:
+                        log.info(f"Ping failed for device {Device} previously, sending force values command\n")
+                        client.publish(str(msg.topic), "PRTCL_FORCEVALUES")
                 else:
                     log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
             else:
@@ -1473,61 +1522,92 @@ def on_message(client, userData, msg):
                 else:
                     log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
 
+    if "b'PRTCL_DVC_OK'" == str(msg.payload):
+        device = ""
+        for entry in configtable:
+            if entry[1] == msg.topic:
+                device = entry[0]
+        log.info(f"Data validity check for device with MAC address {device} succeeded")
+
+    if "b'PRTCL_DVC_FAIL'" == str(msg.payload):
+        device = ""
+        for entry in configtable:
+            if entry[1] == msg.topic:
+                device = entry[0]
+        log.warning(f"Data validity check for device with MAC address {device} failed, asking for device info")
+        for entry in configtable:
+            if entry[0] == device:
+                client.publish(entry[1], "PRTCL_GETINFO:SELF")  # get the data of the device itself
+
 
 client.subscribe(configreqtopic)
 client.subscribe(devicetopic)
 client.on_message = on_message
 client.loop_start()
 
+dailyRunAlready = False
+isFinished = False
 
-while True:  # loop
+def runTimeLoop():
+    log.info("Started runtime loop")
+    while True:  # loop
+        if PROTOCOL_TIME_SHORT < time.time():  # protocol long
+            setpts()
+            prot.protShort()
+        if PROTOCOL_TIME < time.time():  # protocol
+            setpt()
+            prot.protNorm()
+        if PROTOCOL_TIME_LONG < time.time():  # protocol long
+            setptl()
+            prot.protLong()
+        if datetime.datetime.now().hour == 5 and datetime.datetime.now().minute == 30:
+            dailyRunAlready = False
+        if (datetime.datetime.now().hour >= 23 or datetime.datetime.now().hour <= 1) and dailyRunAlready is False:
+            dailyRunAlready = True
+            # prot.dailyCheck() #ezek nagyon hosszuk lesznek szal egy kulon threadbe kene rakni ezeket
+            daily = threading.Thread(target=prot.dailyCheck)
+            daily.start()
+        if isFinished:
+            daily.join()
+            isFinished = False
+    # *****************************************************************************************************************************************************************************************************************
+        if False:  # og ping
+            if len(ping_tasks) != 0:  # pingelés func
+                for i in reversed(range(0, len(ping_tasks))):  # törlés és kiiras
+                    if ping_tasks[i][6] + ping_tasks[i][7] == ping_tasks[i][2]:  # kiiras
+                        if ping_tasks[i][6] == 0:  # nem volt válaszolt ping
+                            log.warning(f"\nPing failed: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\n")
+                        if ping_tasks[i][6] != 0:  # volt valaszolt ping
+                            log.console(f"\nPing results: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\nAvarage time was {ping_tasks[i][5]/ping_tasks[i][6]}\n\n")
+                        ping_tasks.pop(i)  # torles
+                for i in range(0, len(ping_tasks)):  # pingtimecalc
+                    if ping_tasks[i][3] < ping_tasks[i][4]:  # ha pingstart hamarabb volt mint pingend
+                        pingtime = ping_tasks[i][4] - ping_tasks[i][3]  # calc pingtime
+                        if pingtime < ping_timeout:  # ha nem timoutolt
+                            log.console(pingtime)
+                            ping_tasks[i][5] = ping_tasks[i][5] + pingtime  # add to pingtimesum
+                            ping_tasks[i][6] += 1  # increase succescounter by 1
+                        else:
+                            log.info(f"{ping_tasks[i][0]} lassan valaszolt: {pingtime} seconds")
+                            ping_tasks[i][7] += 1  # add one to timeout
 
-    if PROTOCOL_TIME_SHORT < time.time():  # protocol long
-        setpts()
-        prot.protShort()
-    if PROTOCOL_TIME < time.time():  # protocol
-        setpt()
-        prot.protNorm()
-    if PROTOCOL_TIME_LONG < time.time():  # protocol long
-        setptl()
-        prot.protLong()
-# *****************************************************************************************************************************************************************************************************************
-    if False:  # og ping
-        if len(ping_tasks) != 0:  # pingelés func
-            for i in reversed(range(0, len(ping_tasks))):  # törlés és kiiras
-                if ping_tasks[i][6] + ping_tasks[i][7] == ping_tasks[i][2]:  # kiiras
-                    if ping_tasks[i][6] == 0:  # nem volt válaszolt ping
-                        log.warning(f"\nPing failed: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\n")
-                    if ping_tasks[i][6] != 0:  # volt valaszolt ping
-                        log.console(f"\nPing results: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\nAvarage time was {ping_tasks[i][5]/ping_tasks[i][6]}\n\n")
-                    ping_tasks.pop(i)  # torles
-            for i in range(0, len(ping_tasks)):  # pingtimecalc
-                if ping_tasks[i][3] < ping_tasks[i][4]:  # ha pingstart hamarabb volt mint pingend
-                    pingtime = ping_tasks[i][4] - ping_tasks[i][3]  # calc pingtime
-                    if pingtime < ping_timeout:  # ha nem timoutolt
-                        log.console(pingtime)
-                        ping_tasks[i][5] = ping_tasks[i][5] + pingtime  # add to pingtimesum
-                        ping_tasks[i][6] += 1  # increase succescounter by 1
-                    else:
-                        log.info(f"{ping_tasks[i][0]} lassan valaszolt: {pingtime} seconds")
-                        ping_tasks[i][7] += 1  # add one to timeout
+                    if ping_tasks[i][3] > ping_tasks[i][4] and ping_tasks[i][3] + ping_timeout < time.monotonic() and ping_tasks[i][3] != 1:  # nem jött válasz timout (ha pingtart nagyobb mint pingend (elozobol) ÉS pingstart + timout kevesebb mint mostani ido ÉS nem kezdőállapot
+                        ping_tasks[i][7] += 1  # add one to timout
+                for i in range(0, len(ping_tasks)):  # send ping
+                    if (ping_tasks[i][3] < ping_tasks[i][4] and ping_tasks[i][4] - ping_tasks[i][3] < ping_timeout) or (ping_tasks[i][3] > ping_tasks[i][4] and ping_tasks[i][3] + ping_timeout < time.monotonic()):  # ha lepingelt vagy timoutolt
+                        for j in range(0, len(configtable)):
+                            if ping_tasks[i][0] == configtable[j][0]:
+                                topic = configtable[j][1]
+                        log.console(ping_tasks)
+                        client.publish(topic, "ping")
+                        ping_tasks[i][3] = time.monotonic()
+                        ping_tasks[i][1] -= 1
+                time.sleep(0.25)
 
-                if ping_tasks[i][3] > ping_tasks[i][4] and ping_tasks[i][3] + ping_timeout < time.monotonic() and ping_tasks[i][3] != 1:  # nem jött válasz timout (ha pingtart nagyobb mint pingend (elozobol) ÉS pingstart + timout kevesebb mint mostani ido ÉS nem kezdőállapot
-                    ping_tasks[i][7] += 1  # add one to timout
-            for i in range(0, len(ping_tasks)):  # send ping
-                if (ping_tasks[i][3] < ping_tasks[i][4] and ping_tasks[i][4] - ping_tasks[i][3] < ping_timeout) or (ping_tasks[i][3] > ping_tasks[i][4] and ping_tasks[i][3] + ping_timeout < time.monotonic()):  # ha lepingelt vagy timoutolt
-                    for j in range(0, len(configtable)):
-                        if ping_tasks[i][0] == configtable[j][0]:
-                            topic = configtable[j][1]
-                    log.console(ping_tasks)
-                    client.publish(topic, "ping")
-                    ping_tasks[i][3] = time.monotonic()
-                    ping_tasks[i][1] -= 1
-            time.sleep(0.25)
-
-    if True:  # new ping
-        p.ping_runtime()
-
+        if True:  # new ping
+            p.ping_runtime()
+loop = threading.Thread(target=runTimeLoop)
+loop.start()
 # *****************************************************************************************************************************************************************************************************************
 
 # client.loop_stop()
