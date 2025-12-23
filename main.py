@@ -1650,6 +1650,10 @@ def add_log(message, tag):
     LOG_HISTORY.append(entry)
     #print(entry)
 
+CONFIG_FILES = {
+    "configtable": "configtable.txt",
+    "config": "CONFIGURATION.txt"
+}
 
 class MyHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
@@ -1706,6 +1710,30 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(encoded)
 
+        elif self.path == "/save_config":
+            length = int(self.headers.get("Content-Length"))
+            body = self.rfile.read(length)
+            data = json.loads(body.decode("utf-8"))
+
+            config_name = data.get("name")
+            content = data.get("content")
+
+            try:
+                self.write_config(config_name, content)
+                add_log(f"{config_name} saved successfully", "info")
+                response = {"status": "success"}
+
+            except Exception as e:
+                add_log(str(e), "error")
+                response = {"status": "error", "detail": str(e)}
+
+            encoded = json.dumps(response).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
         else:
             self.send_error(404)
 
@@ -1722,12 +1750,86 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(encoded)
 
+        elif self.path.startswith("/edit/"):
+            config_name = self.path.split("/")[-1]
+
+            try:
+                content = self.read_config(config_name)
+            except Exception as e:
+                self.send_error(404, str(e))
+                return
+
+            html = f"""
+            <html>
+            <head>
+                <title>Edit {config_name}</title>
+                <style>
+                    textarea {{ width: 100%; height: 80vh; }}
+                    button {{ margin-right: 10px; }}
+                </style>
+            </head>
+            <body>
+                <h2>Editing {config_name}</h2>
+    
+                <textarea id="editor">{content}</textarea><br><br>
+    
+                <button onclick="save()">Save</button>
+                <button onclick="discard()">Discard</button>
+                <button onclick="window.location.href='/'">Back</button>
+    
+                <script>
+                    const original = `{content}`;
+    
+                    function save() {{
+                        fetch("/save_config", {{
+                            method: "POST",
+                            headers: {{ "Content-Type": "application/json" }},
+                            body: JSON.stringify({{
+                                name: "{config_name}",
+                                content: document.getElementById("editor").value
+                            }})
+                        }})
+                        .then(r => r.json())
+                        .then(d => alert(d.status));
+                    }}
+    
+                    function discard() {{
+                        document.getElementById("editor").value = original;
+                    }}
+                </script>
+            </body>
+            </html>
+            """
+
+            encoded = html.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
         else:
-            # Serve files from current directory (index.html, etc.)
             return super().do_GET()
 
     def log_message(self, format, *args): # this is only here to disable the constant http request prints to console
         pass
+
+    def read_config(self, name):
+        path = CONFIG_FILES.get(name)
+        if not path:
+            raise ValueError("Unknown config")
+
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
+
+    def write_config(self, name, content):
+        path = CONFIG_FILES.get(name)
+        if not path:
+            raise ValueError("Unknown config")
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
 
 
 def run_server():
