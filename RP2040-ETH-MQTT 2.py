@@ -74,6 +74,10 @@ BAUD_RATE = 115200             # BAUD_RATE
 
 uart1 = UART(1, baudrate=9600, tx=Pin(20), rx=Pin(21))
 
+DHCP_IP = ""
+DHCP_GW = ""
+DHCP_MASK = ""
+
 class rotaryEncoder:
     counter = 0
     aState = 0
@@ -136,6 +140,18 @@ class IOArray:
 
     def __init__(self):
         print("IOArray init")
+        self.checkEveryCycle = [[], [], [], [], [], []]
+        self.analogInList=[]
+        self.digitalInList=[]
+        self.digitalOutList=[]
+        self.i2cAddressList=[]
+        self.pwmOutList=[]
+        self.speHardWareList=[]
+        self.SCL=0
+        self.SDA=0
+        self.i2cByteArray = bytearray(8)
+        self.i2cRead = ""
+        self.newValList=[]
 
     def autoSetup(self, config):
         global PINCONFIG_STATUS
@@ -608,28 +624,28 @@ class ProtocolBook:
             print("No config reply, asking again")
             mqtt_client.publish(CONFIG_REQ_TOPIC, DEVICE_MAC)
             CONFIG_STATUS[0] = 1 #set config requested to true
-        if CONFIG_STATUS[3] == 0 and CONFIG_STATUS[2] == 1: #no topic change ack yet and sent here message
+        elif CONFIG_STATUS[3] == 0 and CONFIG_STATUS[2] == 1: #no topic change ack yet and sent here message
             print("No topic ack, asking again")
             mqtt_client.publish(DEVICE_TOPIC, "HERE")
 
         #pinconfig protocols
-        if CONFIG_STATUS[3] == 1:#csak akkor kerje a pinconfigot ha mar teljesult az mqtt config
+        elif CONFIG_STATUS[3] == 1:#csak akkor kerje a pinconfigot ha mar teljesult az mqtt config
 
             if PINCONFIG_STATUS[3] == 1 and PINCONFIG_STATUS[4] == 0:
                 print("pinconfig status ok, start pinconfig on hardware")
                 print(PINCONFIG)
-                IOArray.autoSetup(PINCONFIG)
-            if PINCONFIG_STATUS[2] == 1 and PINCONFIG_STATUS[3] == 0: #no ack of readback yet
+                IOarray.autoSetup(PINCONFIG)
+            elif PINCONFIG_STATUS[2] == 1 and PINCONFIG_STATUS[3] == 0: #no ack of readback yet
                 mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_READBACK:{PINCONFIG}")
 
-            if PINCONFIG_STATUS[1] == 1 and PINCONFIG_STATUS[2] == 0: #got config, no readback
+            elif PINCONFIG_STATUS[1] == 1 and PINCONFIG_STATUS[2] == 0: #got config, no readback
                 mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_READBACK:{PINCONFIG}")
                 PINCONFIG_STATUS[2] = 1
 
-            if PINCONFIG_STATUS[0] == 1 and PINCONFIG_STATUS[1] == 0: #requested config yet no reply
+            elif PINCONFIG_STATUS[0] == 1 and PINCONFIG_STATUS[1] == 0: #requested config yet no reply
                 mqtt_client.publish(DEVICE_TOPIC, "PRTCL_PINCONFIG:REQUEST")
 
-            if PINCONFIG_STATUS[0] == 0: #not yet requested config
+            elif PINCONFIG_STATUS[0] == 0: #not yet requested config
                 mqtt_client.publish(DEVICE_TOPIC, "PRTCL_PINCONFIG:REQUEST")
                 PINCONFIG_STATUS[0] = 1
 
@@ -637,13 +653,13 @@ class ProtocolBook:
         if command == "getID":
             return "RT1"
         if PINCONFIG_STATUS[4] == 1:
-            IOArray.getVals()
+            IOarray.getVals()
 
     def readValuesEveryCycle(self, command):
         if command == "getID":
             return "RT0"
         if PINCONFIG_STATUS[4] == 1:
-            IOArray.readEveryCycle()
+            IOarray.readEveryCycle()
 
 
 class ASCII:
@@ -747,7 +763,7 @@ class MQTTClient:
         global LASTMESSAGE
         if LASTMESSAGE + 500000 > time.time_ns():
             print("Too fast message burst, waiting .125 seconds")
-            time.sleep(0.125)
+            time.sleep(0.25)
         publish_message = bytearray([
             0x30, 0x11,   # MQTT control packet type (PUBLISH)
             0x00, 0x0A    # Length of the topic name
@@ -799,13 +815,21 @@ class MQTTClient:
     def extract_data(self, rxData):
         rxArray = bytearray()
         rxArray.extend(rxData)
-        if len(rxArray) < 128:
-            topic = rxArray[4:4 + rxArray[3]].decode('utf-8')
-            message = rxArray[4 + rxArray[3]:rxArray[1] + 2].decode('utf-8')
-        else:
-            topic = rxArray[5:5 + rxArray[4]].decode('utf-8')
-            message = rxArray[5 + rxArray[4]:rxArray[1] + 3].decode('utf-8')
-        return topic, message
+        try:
+            if len(rxArray) < 128:
+                topic = rxArray[4:4 + rxArray[3]].decode('utf-8')
+                message = rxArray[4 + rxArray[3]:rxArray[1] + 2].decode('utf-8')
+            else:
+                topic = rxArray[5:5 + rxArray[4]].decode('utf-8')
+                message = rxArray[5 + rxArray[4]:rxArray[1] + 3].decode('utf-8')
+            return topic, message
+        except Exception as e:
+            print("An error occured while decoding a message:", rxArray)
+            print(e)
+            if str(e) == "UnicodeError: ":
+                print("UnicodeError occured during the processing of an MQTT message")
+                mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_ERROR:UnicodeError occured during the processing of an MQTT message")
+            return None, None
 
 class CH9120:
     def __init__(self, uart):
@@ -914,6 +938,33 @@ class CH9120:
         #print(DEVICE_MAC)
         #print("getmachexconvert end")
 
+    def getIP(self):
+        uart1.read()
+        global DHCP_IP
+        uart1.write(b'\x57\xab\x61')
+        time.sleep_ms(20)
+        DHCP_IP = uart1.read()
+        DHCP_IP = f'{int(str(DHCP_IP).split("\\x")[1], 16)}.{int(str(DHCP_IP).split("\\x")[2], 16)}.{int(str(DHCP_IP).split("\\x")[3], 16)}.{int(str(DHCP_IP).split("\\x")[4][:-1], 16)}'
+        print(DHCP_IP)
+
+
+    def getGateway(self):
+        global DHCP_GW
+        uart1.write(b'\x57\xab\x63')
+        time.sleep_ms(20)
+        DHCP_GW = uart1.read()
+        DHCP_GW = f'{int(str(DHCP_GW).split("\\x")[1], 16)}.{int(str(DHCP_GW).split("\\x")[2], 16)}.{int(str(DHCP_GW).split("\\x")[3], 16)}.{int(str(DHCP_GW).split("\\x")[4][:-1], 16)}'
+        print(DHCP_GW)
+
+    def getMask(self):
+        global DHCP_MASK
+        uart1.write(b'\x57\xab\x62')
+        time.sleep_ms(20)
+        DHCP_MASK = uart1.read()
+        DHCP_MASK = f'{int(str(DHCP_MASK).split("\\x")[1], 16)}.{int(str(DHCP_MASK).split("\\x")[2], 16)}.{int(str(DHCP_MASK).split("\\x")[3], 16)}.{int(str(DHCP_MASK).split("\\x")[4][:-1], 16)}'
+        print(DHCP_MASK)
+
+
 
 def ch9120_configure():
     global uart1
@@ -934,6 +985,10 @@ def ch9120_configure():
     ch9120.set_baudRate(BAUD_RATE)
     ch9120.enable_DHCP()
     #ch9120.disable_DHCP()
+    time.sleep(2)
+    ch9120.getIP()
+    ch9120.getGateway()
+    ch9120.getMask()
     ch9120.exit_config()  # exit configuration mode'''
 
 
@@ -958,7 +1013,7 @@ IOarray.initDigitalIn()
 IOarray.readDigital()
 '''
 
-IOArray = IOArray()
+IOarray = IOArray()
 prot = ProtocolBook()
 
 if __name__ == "__main__":
@@ -986,6 +1041,8 @@ if __name__ == "__main__":
             #print(topic)
             #print("Printing message:")
             #print(message)
+            if topic is None and message is None:
+                continue
             if topic == CONFIG_RPLY_TOPIC:
                 if DEVICE_MAC in message:
                     DEVICE_TOPIC = message.split(",")[1]
@@ -1012,6 +1069,18 @@ if __name__ == "__main__":
                     mqtt_client.publish(DEVICE_TOPIC, "ping ok")
                 if message == "channel change ack":
                     CONFIG_STATUS[3] = 1 #set server acknowledge by server to true
+
+                if message == "PRTCL_REMOTE:reload_pinconfig":
+                    mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_INFO:Start setting up to reload pinconfig")
+                    del IOarray #del ioarray
+                    PINCONFIG = "" #config to default
+                    PINCONFIG_STATUS = [0, 0, 0, 0, 0] #configstatus list to default
+                    IOarray = IOArray() #create ioarray
+                    mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_INFO:Finished setting up to reload pinconfig")
+
+                if message == "PRTCL_REMOTE:restart":
+                    mqtt_client.publish(DEVICE_TOPIC, "PRTCL_LOG_ERROR:IMPLEMENT RESTART COMMAND")
+
                 if "PRTCL_PINCONFIG" in message and message != "PRTCL_PINCONFIG:REQUEST":
                     print(message.split(":")[1])
                     PINCONFIG = message.split(":")[1]
@@ -1026,14 +1095,26 @@ if __name__ == "__main__":
                     PROTOCOL_TIME = time.time()
 
                 if message == "PRTCL_GETINFO:SELF":
-                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_GIVEINFO:MANUFACTURER={MANUFACTURER},MODEL={MODEL},HW_VERSION={HW_VERSION},SW_VERSION={SW_VERSION},CONFIGURL={CONFIGURL}")
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_GIVEINFO_HW:MANUFACTURER={MANUFACTURER},MODEL={MODEL},HW_VERSION={HW_VERSION},SW_VERSION={SW_VERSION},CONFIGURL={CONFIGURL}")
+                if message == "PRTCL_GETINFO:RUNTIME":
+                    if DHCP_IP is None or DHCP_GW is None or DHCP_MASK is None:
+                        ch9120_configure()
+                        print("Some network related data is not avaible, reconfiguring CH9120")
+                    """if DHCP_IP is None: DHCP_IP = 'n/a'
+                    else: continue
+                    if DHCP_GW is None: DHCP_GW ='n/a'
+                    else: continue
+                    if DHCP_MASK is None: DHCP_MASK = 'n/a'
+                    else: continue"""
+
+                    mqtt_client.publish(DEVICE_TOPIC, f"PRTCL_GIVEINFO_RT:MODEL={MODEL},IP={DHCP_IP},GATEWAY={DHCP_GW},MASK={DHCP_MASK}")
                 if "PRTCL_DVC_ASK:" in message:
                     if checkData(message.split(":")[1]) is True:
                         mqtt_client.publish(DEVICE_TOPIC, "PRTCL_DVC_OK")
                     else:
                         mqtt_client.publish(DEVICE_TOPIC, "PRTCL_DVC_FAIL")
                 if message == "PRTCL_FORCEVALUES":
-                    IOArray.forceValues()
+                        IOarray.forceValues()
 
 ############################################################################################################ new protocol controller
         prot.everyLoop()
@@ -1073,3 +1154,10 @@ if __name__ == "__main__":
                         break
 
         time.sleep_ms(0) # elozoleg 20 volt de most epp stabilabb az uart olvasas
+
+### HA TOBB UZENET EGYSZERRE VAN BEOLVASVA ELHASSAL A TÉMA TELJESEN, NEM TUDJA DECODOLNI (uart readnel), valahgyo gyorstani kell a ciklusokat hiogy ne egybe találja meg az uzeneteket
+
+### jelenelg nem megy a ping amig nem kap topic ack-ot a servertől, ezt ki kene javitani
+
+### illetve server oldarol kell egy olyan fix hogy jelenleg nem megy amig pingel mintha blockolná az mqtt részt (addig nem kapja meg ennek az uzenetet amig irja ki a pingeket)
+

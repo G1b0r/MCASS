@@ -65,6 +65,7 @@ password = ""
 client_id = "MQTTControlServer1"
 # mac add --- topic --- majd a tobbi
 configtable = []
+deviceData = []  # runtime data for web control, # mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
 
 HassAPIkey = ""
 HassIP = ""
@@ -318,81 +319,89 @@ def loadConfigTable():
             linecount += 1  # sor szám +1
             tobedeleted = False  # alapra állít a sor törlése
             log.console(line.rstrip())
-            if len(line.rstrip().split(",")) < 2:  # ha nincs vessző, szóval valami biztos hiányzik
-                log.error(f"Config invalid, not enough arguments in line {linecount}")
-            else:
-                configtable.append(line.rstrip().split(","))
-                if len(configtable[-1]) == 2:  # ha nincs megadva pincofnig set it to none
-                    configtable[-1].append("None")
-                if len(configtable[-1][2]) == 0:  # ha van vessző de nincs irva semmi a pincofig reszhez set it to none
-                    configtable[-1][2] = "None"
-                if len(configtable[-1][0]) != 17:  # ha a mac cim nem 17 karakter hosszu
-                    log.error(f"Mac address length is too short in line {linecount} with argument {configtable[-1][0]}")
-                    tobedeleted = True
+            if line.rstrip()[0] != "#":
+                if len(line.rstrip().split(",")) < 2:  # ha nincs vessző, szóval valami biztos hiányzik
+                    log.error(f"Config invalid, not enough arguments in line {linecount}")
                 else:
-                    if configtable[-1][0][2] == ":" and configtable[-1][0][5] == ":" and configtable[-1][0][8] == ":" and configtable[-1][0][11] == ":" and configtable[-1][0][14] == ":":  # ha kettospontal van elválasztva rakja át kotojelre
-                        log.warning(f'Mac address format mismatch, converting ":" to "-" in {configtable[-1][0]} at line {linecount }')
-                        configtable[-1][0] = configtable[-1][0].replace(":", "-")
-                    if configtable[-1][0].count("-") != 5:  # ha nem 5 darab separator van
-                        log.error(f"Mac address segment separators count is incorrect in line {linecount} with argument {configtable[-1][0]}")
+                    configtable.append(line.rstrip().split(','))
+                    deviceData.append(f"{line.rstrip().split(',')[0]}*n/a*n/a*n/a*n/a*n/a".split("*"))
+                    if len(configtable[-1]) == 2:  # ha nincs megadva pincofnig set it to none
+                        configtable[-1].append("None")
+                    if len(configtable[-1][2]) == 0:  # ha van vessző de nincs irva semmi a pincofig reszhez set it to none
+                        configtable[-1][2] = "None"
+                    if len(configtable[-1][0]) != 17:  # ha a mac cim nem 17 karakter hosszu
+                        log.error(f"Mac address length is too short in line {linecount} with argument {configtable[-1][0]}")
                         tobedeleted = True
-                    for i in range(1, 18):
-                        if i % 3 == 0:
-                            if configtable[-1][0][i-1] != "-":
-                                log.error(f"Mac address segment separators are incorrect in line {linecount} with argument {configtable[-1][0]}")
-                                tobedeleted = True
-                                break
-                        else:
-                            if (configtable[-1][0][i-1] < '0' or configtable[-1][0][i-1] > '9') and (configtable[-1][0][i-1] < 'A' or configtable[-1][0][i-1] > 'F'):
-                                log.error(f"Mac address contains non hex characters in line {linecount} with argument {configtable[-1][0]}")
-                                tobedeleted = True
-                                break
-                nameshelp = []
-                templine = ""
-                tobereplaced = ""
-                for sensor in configtable[-1][2].split("/"):
-                    if len(sensor.split("@")) > 2:
-                        alreadyin = False
-                        if len(sensor.split("(")) < 2:  # no domain
-                            sensorname = sensor.split("@")[1]
-                        elif len(sensor.split("(")) == 2:
-                            sensorname = sensor.split("@")[1].split("(")[0]
-                        for entry in nameshelp:
-                            if entry == sensorname:
-                                alreadyin = True
-                        if alreadyin:  # old was if alreadyin == True de az True == True szoval igy egyzserubb
-                            log.error(f"Sensor with name {sensorname} already exist, removing from pinconfig")
-                            print(len(configtable[-1][2].split(f"/{sensor}")))
-                            if len(configtable[-1][2].split(f"/{sensor}")) > 2:
-                                templine = f'{configtable[-1][2].split(f"/{sensor}")[0]}/{sensor}{configtable[-1][2].split(f"/{sensor}")[1].replace(f"/{sensor}", "")}'
-                            elif len(configtable[-1][2].split(f"/{sensor}")) < 3:
-                                templine = configtable[-1][2].replace(f"/{sensor}", "")
-                            configtable[-1][2] = templine
-                        else:
-                            nameshelp.append(sensorname)
+                    else:
+                        if configtable[-1][0][2] == ":" and configtable[-1][0][5] == ":" and configtable[-1][0][8] == ":" and configtable[-1][0][11] == ":" and configtable[-1][0][14] == ":":  # ha kettospontal van elválasztva rakja át kotojelre
+                            log.warning(f'Mac address format mismatch, converting ":" to "-" in {configtable[-1][0]} at line {linecount }')
+                            configtable[-1][0] = configtable[-1][0].replace(":", "-")
+                        if configtable[-1][0].count("-") != 5:  # ha nem 5 darab separator van
+                            log.error(f"Mac address segment separators count is incorrect in line {linecount} with argument {configtable[-1][0]}")
+                            tobedeleted = True
+                        for i in range(1, 18):
+                            if i % 3 == 0:
+                                if configtable[-1][0][i-1] != "-":
+                                    log.error(f"Mac address segment separators are incorrect in line {linecount} with argument {configtable[-1][0]}")
+                                    tobedeleted = True
+                                    break
+                            else:
+                                if (configtable[-1][0][i-1] < '0' or configtable[-1][0][i-1] > '9') and (configtable[-1][0][i-1] < 'A' or configtable[-1][0][i-1] > 'F'):
+                                    log.error(f"Mac address contains non hex characters in line {linecount} with argument {configtable[-1][0]}")
+                                    tobedeleted = True
+                                    break
+                    nameshelp = []
+                    templine = ""
+                    tobereplaced = ""
+                    for sensor in configtable[-1][2].split("/"):
+                        if len(sensor.split("@")) > 2:
+                            alreadyin = False
+                            if len(sensor.split("(")) < 2:  # no domain
+                                sensorname = sensor.split("@")[1]
+                            elif len(sensor.split("(")) == 2:
+                                sensorname = sensor.split("@")[1].split("(")[0]
+                            for entry in nameshelp:
+                                if entry == sensorname:
+                                    alreadyin = True
+                            if alreadyin:  # old was if alreadyin == True de az True == True szoval igy egyzserubb
+                                log.error(f"Sensor with name {sensorname} already exist, removing from pinconfig")
+                                print(len(configtable[-1][2].split(f"/{sensor}")))
+                                if len(configtable[-1][2].split(f"/{sensor}")) > 2:
+                                    templine = f'{configtable[-1][2].split(f"/{sensor}")[0]}/{sensor}{configtable[-1][2].split(f"/{sensor}")[1].replace(f"/{sensor}", "")}'
+                                elif len(configtable[-1][2].split(f"/{sensor}")) < 3:
+                                    templine = configtable[-1][2].replace(f"/{sensor}", "")
+                                configtable[-1][2] = templine
+                            else:
+                                nameshelp.append(sensorname)
 
-                existing_topics = []
-                matchcount = 0
-                for entry in configtable:
-                    existing_topics.append(entry[1])
-                for et in existing_topics:
-                    if configtable[-1][1] == et:
-                        matchcount += 1
-                if matchcount > 1:
-                    tobedeleted = True
-                    log.error(f"Duplicate device topic in line {linecount}. Removing from configtable")
+                    existing_topics = []
+                    matchcount = 0
+                    for entry in configtable:
+                        existing_topics.append(entry[1])
+                    for et in existing_topics:
+                        if configtable[-1][1] == et:
+                            matchcount += 1
+                    if matchcount > 1:
+                        tobedeleted = True
+                        log.error(f"Duplicate device topic in line {linecount}. Removing from configtable")
 
 
-                log.console(configtable[-1])
+                    log.console(configtable[-1])
+            else:
+                log.info(f"Line {linecount} commented out, skipping")
 
             if tobedeleted:
                 del configtable[-1]
+                del deviceData[-1]
+    log.info(f"Ammount of entries in configtable: {len(configtable)}")
 loadConfigTable()
 
 def reloadConfigTable():
+    log.info("Reloading configtable")
     try:
         global configtable
         configtable = []
+        deviceData = []
         loadConfigTable()
         return "OK"
     except Exception as e:
@@ -445,6 +454,16 @@ def tbc(mac_address):
             tobeconfigured.write(f"\n{mac_address}")
         tobeconfigured.close()
 
+def setRuntimeDataPing(mac, result):
+    for i in range(0, len(deviceData)):
+        if deviceData[i][0] == mac:
+            if result == "Failed":
+                deviceData[i][5] = result
+            else:
+                deviceData[i][5] = f"{result} ms"
+            return
+    log.error(f"Device with mac address {mac} was not found in deviceData to update last ping time")
+
 
 class Ping2:
     ping_tasks2 = []  # mac,numberofpings(forcountdown),numberofpings,pingstart,pingend,pingtimesum,succestimer,timoutcounter, ID
@@ -487,9 +506,11 @@ class Ping2:
                     if self.ping_tasks2[i][6] == 0:  # nem volt válaszolt ping
                         log.warning(f"Ping failed: {self.ping_tasks2[i][6]} success, {self.ping_tasks2[i][7]} failed out of {self.ping_tasks2[i][2]}\n")
                         self.ping_results2.append(f"{self.ping_tasks2[i][8]}*Failed".split("*"))
+                        setRuntimeDataPing(self.ping_tasks2[i][0], "Failed")
                     if self.ping_tasks2[i][6] != 0:  # volt valaszolt ping
                         log.console(f"Ping results: {self.ping_tasks2[i][6]} success, {self.ping_tasks2[i][7]} failed out of {self.ping_tasks2[i][2]}\nAvarage time was {self.ping_tasks2[i][5]/self.ping_tasks2[i][6]}")
                         self.ping_results2.append(f"{self.ping_tasks2[i][8]}*Successful".split("*"))
+                        setRuntimeDataPing(self.ping_tasks2[i][0], str(int(self.ping_tasks2[i][5]/self.ping_tasks2[i][6]*1000)))
                     self.ping_tasks2.pop(i)  # torles
             for i in range(0, len(self.ping_tasks2)):  # pingtimecalc
                 if self.ping_tasks2[i][3] < self.ping_tasks2[i][4]:  # ha pingstart hamarabb volt mint pingend
@@ -506,13 +527,15 @@ class Ping2:
                     self.ping_tasks2[i][7] += 1  # add one to timout
             for i in range(0, len(self.ping_tasks2)):  # send ping
                 if (self.ping_tasks2[i][3] < self.ping_tasks2[i][4] and self.ping_tasks2[i][4] - self.ping_tasks2[i][3] < ping_timeout) or (self.ping_tasks2[i][3] > self.ping_tasks2[i][4] and self.ping_tasks2[i][3] + ping_timeout < time.monotonic()):  # ha lepingelt vagy timoutolt
+                    topic = None
                     for j in range(0, len(configtable)):
                         if self.ping_tasks2[i][0] == configtable[j][0]:
                             topic = configtable[j][1]
                     # log.console(self.ping_tasks2)
-                    client.publish(topic, "ping")
-                    self.ping_tasks2[i][3] = time.monotonic()
-                    self.ping_tasks2[i][1] -= 1
+                    if topic is not None:
+                        client.publish(topic, "ping")
+                        self.ping_tasks2[i][3] = time.monotonic()
+                        self.ping_tasks2[i][1] -= 1
             time.sleep(0.25)
 
     def get_result(self, pid):
@@ -603,11 +626,11 @@ class HASS:
     dualSensorSimple = []
 
     def __init__(self):
+        log.info("HASS init started")
         for entry in self.defautlUOMByType:
             if len(entry) > 3:
                 self.dualSensor.append(entry)
                 self.dualSensorSimple.append(entry[0])
-        print("HASS init")
         with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
             log.console("Reading hassImportData file")
             dfile.seek(0)
@@ -626,6 +649,10 @@ class HASS:
                 self.entities.append(entry)
             else:
                 log.error(f"Unkown domain type given in hassImportData in the form of {entry}")
+        log.info("HASS init finished")
+
+    def __del__(self):
+        log.warning("Instance of HASS class was destroyed")
 
     def reloadData(self):
         self.loadedData = []
@@ -1151,7 +1178,7 @@ class HASS:
             if mac == device[1].replace("MCASS_", ""):
                 return(device[3],device[4],device[5],device[6],device[7])
 
-
+ha = ""
 if HaState == "ON":
     log.info("Starting HASS...")
     ha = HASS()
@@ -1170,6 +1197,8 @@ else:
 class ProtocolBook:
     protocollist = []  # protocollist=[protpointer, protname, type(short,normal,long,everycycle) or off]
     protDict = {}
+
+    helper = 0
 
     def __init__(self):
         var = 1
@@ -1213,6 +1242,10 @@ class ProtocolBook:
             if protocol[0][0] == "H" and protocol[0][1] == "A":
                 if HaState == "OFF":
                     log.info(f"Switching off protocol {protocol[1]} with id of {protocol[0]} due to MQTTDISCOVERY setting being turned off")
+                    protocol[2] = "off"
+            if protocol[0][0] == "W" and protocol[0][1] == "C":
+                if webcontrol is False:
+                    log.info(f"Switching off protocol {protocol[1]} with id of {protocol[0]} due to WEBCONTROL setting being turned off")
                     protocol[2] = "off"
 
     def testn(self, command):
@@ -1356,6 +1389,62 @@ class ProtocolBook:
             client.publish(entry[1], f"PRTCL_DVC_ASK:{datas[0]},{datas[1]},{datas[2]},{datas[3]},{datas[4]}")
             time.sleep(15)
 
+    def getRuntimeDatForWebn(self, command):
+        if command == "getID":
+            return "WC1"
+        for i in range(self.helper % len(deviceData), len(deviceData)):
+            self.helper += 1
+            ammofna = 0
+            for data in deviceData[i]:
+                if data == "n/a":
+                    ammofna += 1
+            if ammofna > 1:
+                data = get_device_config(deviceData[i][0])
+                client.publish(data[1], "PRTCL_GETINFO:RUNTIME")
+                break
+            else:
+                continue
+
+    def getRuntimeDatForWebFrequencyManagerl(self, command):
+        if command == "getID":
+            return "WC2"
+        empty = 0
+        filled = 0
+        for entry in deviceData:
+            for element in entry:
+                if element == "n/a":
+                    empty += 1
+                else:
+                    filled += 1
+        missingrate = 0
+        if empty != 0:
+            missingrate = empty/(filled+empty)
+        else:
+            missingrate = 1
+
+        if missingrate < 0.75:
+            for protocol in self.protocollist:  # nezd vegig a listat
+                if protocol[1] == "getRuntimeDatForWebn":  # ha a nev egyezik a masikeval
+                    if protocol[2] != "normal":
+                        protocol[2] = "normal"  # rakd at normalra
+                        log.info("Ammount of missing data is high in deviceData, switching getRuntimeDatForWebn protocol to normal")
+
+        elif missingrate > 0.75 and missingrate != 1:
+            for protocol in self.protocollist:  # nezd vegig a listat
+                if protocol[1] == "getRuntimeDatForWebn":  # ha a nev egyezik a masikeval
+                    if protocol[2] != "long":
+                        protocol[2] = "long"  # rakd at normalra
+                        log.info("Ammount of missing data is moderate in deviceData, switching getRuntimeDatForWebn protocol to long")
+
+        else: # ha 1 az osztas eredmenye szal minden megvan
+            for protocol in self.protocollist:  # nezd vegig a listat
+                if protocol[1] == "getRuntimeDatForWebn":  # ha a nev egyezik a masikeval
+                    if protocol[2] != "off":
+                        protocol[2] = "off"  # rakd at normalra
+                        log.info("No data is missing in deviceData, switching getRuntimeDatForWebn protocol off")
+
+
+
 
 log.info("Starting ProtocolBook...")
 prot = ProtocolBook()
@@ -1424,6 +1513,7 @@ def domainRemover(input):
     return tbr
 
 
+delayResponseWithSecond = 0.25
 def on_message(client, userData, msg):
     log.console(f"Message ({msg.payload}) arrived from ({msg.topic})")
     if msg.topic == configreqtopic:
@@ -1443,6 +1533,7 @@ def on_message(client, userData, msg):
             if msg.topic == configtable[i][1]:
                 device = configtable[i][0]
                 log.info(f"Device {device} succesfully connected to own channel")
+                time.sleep(delayResponseWithSecond)
                 client.publish(msg.topic, "channel change ack")
 
     if "b'ping ok'" == str(msg.payload):
@@ -1455,6 +1546,7 @@ def on_message(client, userData, msg):
     if str(msg.payload) == "b'PRTCL_PINCONFIG:REQUEST'":  # pinconfig request ---#PRTCL_PINCONFIG:config
         for i in range(0, len(configtable)):
             if msg.topic == configtable[i][1]:
+                time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
                 client.publish(configtable[i][1], f"PRTCL_PINCONFIG:{domainRemover(configtable[i][2])}")
 
     if "PRTCL_READBACK:" in str(msg.payload):  # readback ---#PRTCL_READBACK:OK if ok ---#PRTCL_READBACK:NOPE if not good readback
@@ -1462,8 +1554,10 @@ def on_message(client, userData, msg):
             for i in range(0, len(configtable)):
                 if msg.topic == configtable[i][1]:
                     if str(msg.payload).split(":")[1][:-1] == domainRemover(configtable[i][2]):
+                        time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
                         client.publish(configtable[i][1], "PRTCL_READBACK:OK")
                     else:
+                        time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
                         client.publish(configtable[i][1], "PRTCL_READBACK:NOPE")
 
     if "PRTCL_LOG" in str(msg.payload):
@@ -1479,7 +1573,8 @@ def on_message(client, userData, msg):
         else:
             log.error(f'Unkown error level provided from {str(msg.topic)} with level {str(msg.payload).split(":")[0][-2:]}\nError message was: {str(msg.payload).split(":")[1][:-1]}')
 
-    if "PRTCL_GIVEINFO:" in str(msg.payload):
+
+    if "PRTCL_GIVEINFO_HW:" in str(msg.payload):
         device = ""
         giveninfo = str(msg.payload).split(":", 1)[1][:-1]
         for entry in configtable:
@@ -1487,6 +1582,27 @@ def on_message(client, userData, msg):
                 device = entry[0]
         if device != "":
             ha.updateData(device, giveninfo)
+
+    if "PRTCL_GIVEINFO_RT:" in str(msg.payload):
+        device = ""
+        giveninfo = str(msg.payload).split(":", 1)[1][:-1]
+        for entry in configtable:
+            if str(msg.topic) == entry[1]:
+                device = entry[0]
+        for entry in deviceData:
+            if entry[0] == device:
+                for data in giveninfo.split(","):# mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
+                    if "MODEL" in data:
+                        entry[1] = data.split("=")[1]
+                    elif "IP" in data:
+                        entry[3] = data.split("=")[1]
+                    elif "GATEWAY" in data:
+                        entry[2] = data.split("=")[1]
+                    elif "MASK" in data:
+                        entry[4] = data.split("=")[1]
+                    else:
+                        log.error(f"Unkown data provided via protocol PRTCL_GIVEINFO_RT by device with mac address {device}, given info was {giveninfo}")
+
 
     if "PRTCL_VAL:" in str(msg.payload):  # value forwarder
         if HaState == "ON":
@@ -1575,6 +1691,7 @@ isFinished = False
 def runTimeLoop():
     log.info("Started runtime loop")
     global isFinished
+    global dailyRunAlready
     while True:  # loop
         if PROTOCOL_TIME_SHORT < time.time():  # protocol long
             setpts()
@@ -1693,6 +1810,22 @@ class MyHandler(SimpleHTTPRequestHandler):
                     if result == "ERROR":
                         response = {"status": "error", "detail": "Error while reading configtable"}
 
+                elif cmd == "restart_server":
+                    log.error("IMPLEMENT SERVER RESTART COMMAND")
+                    response = {"status": "error", "detail": "IMPLEMENT"} #change to succesful when implemented
+
+                elif cmd == "reloadHASS":
+                    if HaState == "OFF":
+                        log.info("Skipping Hass reload, Hass is currently turned off")
+                        response = {"status": "error", "detail": "HASS is turned off"}
+                    else:
+                        #log.error("IMPLEMENT HASS CLASS RELOAD COMMAND")
+                        global ha
+                        del ha
+                        ha = HASS()
+                        log.info("Reloaded HASS class")
+                        response = {"status": "success", "detail": "Reloaded successfully"}
+
                 else:
                     #add_log("Unknown command.", "error")
                     log.error("Unknown command provided from web interface")
@@ -1733,6 +1866,32 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             self.wfile.write(encoded)
+
+        elif self.path == "/api/device_command":
+            length = int(self.headers.get("Content-Length"))
+            body = self.rfile.read(length)
+            data = json.loads(body.decode("utf-8"))
+
+            mac = data.get("mac")
+            cmd = data.get("command")
+
+            add_log(f"Device command '{cmd}' for {mac}", "info")
+
+            result = self.handle_device_command(mac, cmd)
+
+            if result == "OK":
+                response = {"status": "success"}
+            else:
+                response = {"status": "error", "detail": result}
+
+            encoded = json.dumps(response).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+
 
         else:
             self.send_error(404)
@@ -1808,6 +1967,47 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(encoded)
 
+        elif self.path == "/devices":
+            self.serve_devices_page()
+
+        elif self.path.startswith("/device/"):
+            mac = self.path.split("/device/")[1]
+            self.serve_device_page(mac)
+
+        elif self.path == "/api/devices":
+            self.serve_devices_api()
+
+        elif self.path.startswith("/api/device/"):
+            mac = self.path.split("/api/device/")[1]
+
+            cfg = self.find_device_in_config(mac)
+            runtime = self.find_device_in_runtime(mac)
+
+            if not cfg:
+                self.send_error(404, "Device not found")
+                return
+
+            data = {
+                "mac": cfg[0],
+                "topic": cfg[1],
+                "pinconfig": cfg[2],
+
+                # runtime data (may be missing)  # mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
+                "device_model": runtime[1] if runtime else "unknown",
+                "ip_addr": runtime[3] if runtime else None,
+                "gateway": runtime[2] if runtime else None,
+                "mask": runtime[4] if runtime else None,
+                "last_avg_ping_time": runtime[5] if runtime else None,
+            }
+
+            encoded = json.dumps(data).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+
         else:
             return super().do_GET()
 
@@ -1830,6 +2030,159 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
+
+    def serve_devices_api(self):
+        devices = [{"mac": e[0]} for e in configtable]
+
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(devices).encode())
+
+    def serve_devices_page(self):
+        html = """
+        <html>
+        <head>
+            <title>Devices</title>
+            <style>
+                input { width: 100%; padding: 8px; margin-bottom: 10px; }
+                button { width: 100%; padding: 10px; margin: 3px 0; }
+            </style>
+        </head>
+        <body>
+            <h2>Device List</h2>
+    
+            <input id="search" placeholder="Search MAC..." oninput="filter()">
+    
+            <div id="list"></div>
+    
+            <button onclick="location.href='/'">Back</button>
+    
+            <script>
+                let devices = [];
+    
+                fetch("/api/devices")
+                    .then(r => r.json())
+                    .then(d => {
+                        devices = d;
+                        render(d);
+                    });
+    
+                function render(list) {
+                    const div = document.getElementById("list");
+                    div.innerHTML = "";
+                    list.forEach(dev => {
+                        const b = document.createElement("button");
+                        b.textContent = dev.mac;
+                        b.onclick = () => location.href = "/device/" + dev.mac;
+                        div.appendChild(b);
+                    });
+                }
+    
+                function filter() {
+                    const q = document.getElementById("search").value.toLowerCase();
+                    render(devices.filter(d => d.mac.toLowerCase().includes(q)));
+                }
+            </script>
+        </body>
+        </html>
+        """
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(html.encode())
+
+    def serve_device_page(self, mac):
+        html = f"""
+        <html>
+        <head>
+            <title>Device {mac}</title>
+        </head>
+        <body>
+            <h2>Device: {mac}</h2>
+    
+            <pre id="info">Loading...</pre>
+    
+            <h3>Commands</h3>
+            <button onclick="sendCommand('ping')">Ping</button>
+            <button onclick="sendCommand('reload_pinconfig')">Reload pinconfig</button>
+            <button onclick="sendCommand('restart')">Restart</button>
+
+    
+            <br><br>
+            <button onclick="location.href='/devices'">Back</button>
+    
+        <script>
+        fetch("/api/device/{mac}")
+            .then(r => r.json())
+            .then(d => {{
+                document.getElementById("info").textContent =
+                    JSON.stringify(d, null, 2);
+            }})
+            .catch(e => {{
+                document.getElementById("info").textContent =
+                    "Failed to load device data";
+            }});
+        
+        function sendCommand(cmd) {{
+            fetch("/api/device_command", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{
+                    command: cmd,
+                    mac: "{mac}"
+                }})
+            }})
+            .then(r => r.json())
+            .then(d => {{
+                if (d.status === "success")
+                    alert("Command sent successfully");
+                else
+                    alert(d.detail);
+            }});
+        }}
+        </script>
+
+        </body>
+        </html>
+        """
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(html.encode())
+
+
+    def handle_device_command(self, mac, cmd): #NEED TO TEST
+        device_cfg = self.find_device_in_config(mac)
+        device_runtime = self.find_device_in_runtime(mac)
+
+        if not device_cfg:
+            return "Device not found in configtable"
+
+        if cmd == "ping":
+            p.pingstart(mac.upper(), 4)
+            return "OK"
+
+        elif cmd == "restart":
+            device_config = get_device_config(mac)
+            client.publish(device_config[1], "PRTCL_REMOTE:restart")
+            return "OK"
+
+        elif cmd == "reload_pinconfig":
+            device_config = get_device_config(mac)
+            client.publish(device_config[1], "PRTCL_REMOTE:reload_pinconfig")
+            return "OK"
+
+        else:
+            return "Unknown device command"
+
+    def find_device_in_config(self, mac):
+        return next((d for d in configtable if d[0] == mac), None)
+
+    def find_device_in_runtime(self, mac):
+        return next((d for d in deviceData if d[0] == mac), None)
 
 
 def run_server():
