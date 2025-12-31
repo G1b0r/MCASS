@@ -52,8 +52,9 @@ But seriously (not in order):
   - *Runtime reconfiguration and restarts both on server and end device side. This way if a configuration got changed (eg: en device got a new sensor) we do not need to restart the entire server or device # Partially done, restarts need to be implemented*
   - **And other ideas that may come with feature requests....**
   - *Maybe change the way availability checks are done, because currently we are pinging every device, even if it was never connected to the server*
-  - Multithreading (mainly on server side, but possibly on any end device that supports it) # Done, but I'm going to keep this here
-(Bolds are to be done, italics are partially done, normal is completely done)
+  - *Multithreading (mainly on server side, but possibly on any end device that supports it) # Done, but I'm going to keep this here*
+  
+(Bolds are to be done, italics are partially done, normal is completely done)  
     
   
 ### Closing notes:
