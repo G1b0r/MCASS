@@ -41,19 +41,19 @@ Implement a protocol where it checks if the end device supports a certain sensor
 Of course making it of the most useful projects for the community  
   
 But seriously (not in order):
-  - Separating the Home and Enterprise versions
-  - Adding support for more off board hardware (NFC readers, Oxigen sensors and anything that is requested and can be fulfilled)
-  - Adding support for more boards (Expand and adapt for ESP, Arduino boards and any development board that is widespread among the IOT community)
-  - Adding option for backup server
-  - Adding support for EEPROM caching so initial setup of end devices are faster and create less stress on the server (although a checkup of the saved config is necessary to find out if it is still valid or need to be re-cached)
-  - Adding support for remote nodes. These would leverage the connection of a 'main' end device while using it sort of like a proxy for communicating with the server, this way the network wouldn't be loaded with devices. This would probably use I2C as the form of communicating between the remote node (or subdevice) and the end device with the actual network connection
+  - # Separating the Home and Enterprise versions
+  - # Adding support for more off board hardware (NFC readers, Oxigen sensors and anything that is requested and can be fulfilled)
+  - # Adding support for more boards (Expand and adapt for ESP, Arduino boards and any development board that is widespread among the IOT community)
+  - # Adding option for backup server
+  - # Adding support for EEPROM caching so initial setup of end devices are faster and create less stress on the server (although a checkup of the saved config is necessary to find out if it is still valid or need to be re-cached)
+  - # Adding support for remote nodes. These would leverage the connection of a 'main' end device while using it sort of like a proxy for communicating with the server, this way the network wouldn't be loaded with devices. This would probably use I2C as the form of communicating between the remote node (or subdevice) and the end device with the actual network connection
   - Remote control (maybe web?) of the main server, so it could be configured from a remote computer from the web and not in a txt file directly on the server.
   - Remote control of end devices, so if it has a config changed it could be updated without the need to restart the device and go there physically (besides changing the hardware)
-  - Runtime reconfiguration and restarts both on server and end device side. This way if a configuration got changed (eg: en device got a new sensor) we do not need to restart the entire server or device
-  - And other ideas that may come with feature requests....
-  - Maybe change the way availability checks are done, because currently we are pinging every device, even if it was never connected to the server
+  - *Runtime reconfiguration and restarts both on server and end device side. This way if a configuration got changed (eg: en device got a new sensor) we do not need to restart the entire server or device # Partially done, restarts need to be implemented*
+  - # And other ideas that may come with feature requests....
+  - *Maybe change the way availability checks are done, because currently we are pinging every device, even if it was never connected to the server*
   - Multithreading (mainly on server side, but possibly on any end device that supports it) # Done, but I'm going to keep this here
-
+(Bolds are to be done, italics are partially done, normal is completely done)
     
   
 ### Closing notes:
