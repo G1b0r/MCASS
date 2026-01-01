@@ -28,11 +28,11 @@ On end-device side I would consider it almost done. Also some bug-fixes and peri
 
 ### Next steps in development (what to be expected):
 
-Implement a protocol where it checks if the end device supports a certain sensor, and deal with it appropriately (Currently the end device ignores a not supported hardware if it was given in the config, with no feedback what so ever, so there has to be a protocol to ask the end device for what is has a support for (It is stored in the program))
+Implement a protocol where it checks if the end device supports a certain sensor, and deal with it appropriately (Currently the end device ignores a not supported hardware if it was given in the config, with no feedback what so ever, so there has to be a protocol to ask the end device for what is has a support for (It is stored in the program))  
 
-Support for remote nodes.
-Fix MDNS and finish the programs for Home version.
-Support more external hardware, and start translating for other boards.
+Support for remote nodes.  
+Fix MDNS and finish the programs for Home version.  
+Support more external hardware, and start translating for other boards.  
 
 ### Long term goals: 
 
