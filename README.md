@@ -22,7 +22,7 @@ On the long run I want to create two main versions of this, with maybe a third o
 
 ### Current standing:
 
-In a few words: Alpha
+In a few words: Alpha  
 Most of the server side stuff is done, there are some bugfixes that need to be done, and some finalisation is required
 On end-device side I would consider it almost done. Also some bug-fixes and peripheral support expansion
 
