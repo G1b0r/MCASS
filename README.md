@@ -14,7 +14,7 @@ On the long run I want to create two main versions of this, with maybe a third o
    - End devices would use MDNS to find the server and connect to it
    - Also would use Mosquito built into HASS with no option for seperate broker
  - Enterprise edition
-   - Two separate brokers
+   - Two separate brokers *Might reconsider*
     - The first one would be responsible for the base configuration the device, and this server would have a fix IP address on every network calculated by a simple algorith (eg: take the 15th avaible IP of the network, or the median IP of the network.)
     - The second one would be where the actual traffic and communication between the server and end devices would take place. This broker can take any IP
    - It could be configurable in the server which IP the second broker would be in, and the configuration would be sent via the first broker in the initial configuration of the end device.
@@ -22,19 +22,17 @@ On the long run I want to create two main versions of this, with maybe a third o
 
 ### Current standing:
 
-In a few words: Very alpha testing.  
-On the end device part it is a midway and base code currently for the two versions. It is only missing the MDNS and the IP based connection. (It is using a fix programmed IP for testing and development)  
-On the server side it's very close to a beta version. The server configuration is avaible, I'm currently working on the HASS side so that all devices are automatically created in HASS via MQTT Discovery.
+In a few words: Alpha
+Most of the server side stuff is done, there are some bugfixes that need to be done, and some finalisation is required
+On end-device side I would consider it almost done. Also some bug-fixes and peripheral support expansion
 
 ### Next steps in development (what to be expected):
 
-Finish the HASS configuration part 
-  - Implement the forwarder, which is responsible for forwarding the state and control data from end device to HASS and vice versa
-  - Implement the ping function to check the availability of devices and report it to HASS
-  - HASS syncronisation so something got changed in HASS (eg: Icon of entity) it is updated in the server
-
-Implement some protocols for checking the validity of the information on devices (eg: if the software got updated on it)  
 Implement a protocol where it checks if the end device supports a certain sensor, and deal with it appropriately (Currently the end device ignores a not supported hardware if it was given in the config, with no feedback what so ever, so there has to be a protocol to ask the end device for what is has a support for (It is stored in the program))
+
+Support for remote nodes.
+Fix MDNS and finish the programs for Home version.
+Support more external hardware, and start translating for other boards.
 
 ### Long term goals: 
 
@@ -55,7 +53,7 @@ But seriously (not in order):
   - *Maybe change the way availability checks are done, because currently we are pinging every device, even if it was never connected to the server*
   - *Multithreading (mainly on server side, but possibly on any end device that supports it) # Done, but I'm going to keep this here*
   
-(Bolds are to be done, italics are partially done, normal is completely done)  
+(Bolds are to be done, italics are partially done, normal text is completely done)  
     
   
 ### Closing notes:
