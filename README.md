@@ -42,6 +42,7 @@ Of course making it of the most useful projects for the community
   
 But seriously (not in order):
   - **Separating the Home and Enterprise versions**
+  - **Fix MDNS**
   - **Adding support for more off board hardware (NFC readers, Oxigen sensors and anything that is requested and can be fulfilled)**
   - **Adding support for more boards (Expand and adapt for ESP, Arduino boards and any development board that is widespread among the IOT community)**
   - **Adding option for backup server**
