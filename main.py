@@ -63,7 +63,7 @@ devicetopic = "test/devices/#"
 username = ""
 password = ""
 client_id = "MQTTControlServer1"
-# mac add --- topic --- majd a tobbi
+
 configtable = []
 deviceData = []  # runtime data for web control, # mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
 
@@ -78,57 +78,6 @@ P2max_ping_storage = 25
 
 # még a pingekhez lehetne adni sorszámot, hogy tudjuk melyik pingre válaszol, mer most ha kimegy ketto ping de olyan lassan valszol h az elso timoutol de a masodik kikuldese utan jon vissza az elso akkor annak jo lesz a statja de igazabol az elsore valaszolt, majd ha nagyon belekavar akk megcsinalom
 ping_tasks = []  # mac,numberofpings(forcountdown),numberofpings,pingstart,pingend,pingtimesum,succestimer,timoutcounter
-
-
-class Logger2:
-
-    filename = ""
-    filepath = f"{os.getcwd()}/logs/"
-
-    def __init__(self):
-        self.filename = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S').replace(" ", "_").replace(":", "_")
-        # self.filename = os.path.join(f"{os.getcwd()}", "logs", f"{self.filename}")
-        file = open(f"{self.filepath}{self.filename}_log2.txt", "w")
-        file.close()
-        file = open(f"{self.filepath}{self.filename}_console2.txt", "w")
-        file.close()
-
-    def console(self, info):  # print to console only
-        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
-        print(info)
-        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
-        file.write(f"\n[Console] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
-
-    def info(self, info):
-        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
-        print(info)
-        file = open(f"{self.filepath}{self.filename}_log2.txt", "a", encoding="utf-8")
-        file.write(f"\n[Info] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
-        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
-        file.write(f"\n[Info] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
-
-    def warning(self, info):
-        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
-        print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file = open(f"{self.filepath}{self.filename}_log2.txt", "a", encoding="utf-8")
-        file.write(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
-        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
-        file.write(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
-
-    def error(self, info):
-        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
-        print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file = open(f"{self.filepath}{self.filename}_log2.txt", "a", encoding="utf-8")
-        file.write(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
-        file = open(f"{self.filepath}{self.filename}_console2.txt", "a", encoding="utf-8")
-        file.write(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
 
 
 class Logger3:
@@ -154,7 +103,6 @@ class Logger3:
         self.error_max_rep = L3error_max_rep
         self.error_max_rep_within = L3error_max_rep_within
         self.filename = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S').replace(" ", "_").replace(":", "_")
-        # self.filename = os.path.join(f"{os.getcwd()}", "logs", f"{self.filename}")
         file = open(f"{self.filepath}{self.filename}_log3.txt", "w")
         file.close()
         file = open(f"{self.filepath}{self.filename}_console3.txt", "w")
@@ -171,7 +119,6 @@ class Logger3:
         print(info)
         with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
             file.write(f"\n[Console] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        # file.close()
 
     def info(self, info):
         self.forwardToWeb(info, "info")
@@ -180,10 +127,8 @@ class Logger3:
         print(info)
         with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
             file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
-        # file.close()
         with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
             file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
-        # file.close()
 
     def warning(self, info):
         # ---- LOGIC TO NOT SEND MULTIPLES WITHIN TIME ---- #
@@ -204,11 +149,9 @@ class Logger3:
             print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
             with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
                 file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
-            # file.close()
             self.timeoutlist.append(f"{datetime.datetime.now() + datetime.timedelta(minutes=self.timeoutforwarning)}*[Warning]: {info} FROM {wherefrom}".split("*"))
             with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
                 file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
-            # file.close()
 
     def error(self, info):
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -228,16 +171,13 @@ class Logger3:
             print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
             with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
                 file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
-            # file.close()
             with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
                 file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
-            # file.close()
 
     def inLastX(self, x, text):
         lastlines = []
         with open(f"{self.filepath}{self.filename}_log3.txt", encoding='UTF-8') as file:
             for line in (file.readlines()[-x:]):
-                # print(line, end ='')
                 lastlines.append(line)
         for line in lastlines:
             if text in line:
@@ -355,7 +295,6 @@ def loadConfigTable():
                                     break
                     nameshelp = []
                     templine = ""
-                    tobereplaced = ""
                     for sensor in configtable[-1][2].split("/"):
                         if len(sensor.split("@")) > 2:
                             alreadyin = False
@@ -538,7 +477,6 @@ class Ping2:
                     for j in range(0, len(configtable)):
                         if self.ping_tasks2[i][0] == configtable[j][0]:
                             topic = configtable[j][1]
-                    # log.console(self.ping_tasks2)
                     if topic is not None:
                         client.publish(topic, "ping")
                         self.ping_tasks2[i][3] = time.monotonic()
@@ -564,8 +502,6 @@ class HASS:
 
     # IDEA BUT I DONT I WILL DO IT CAUSE ITS NOT NEEDED   #kesz egy passziv availability check, ha eszkoz probalja olvasni de nem sikerul az error mellet visszakuld egy uzit h not avaible, ezt kene kiboviteni egy actival h rakerdez a szerver es ugy megnezi mindegyik sensort esetleg
     def JSONdispatch(self, params):
-        print("in jsondispatch")
-        print(params)
         if params[0] == "SENSOR":
             return self.returnSensorJSON(params[1], params[2], params[3], params[4], params[5], params[6], params[7])
         elif params[0] == "BINARY_SENSOR":
@@ -644,7 +580,6 @@ class HASS:
             linecount = 0  # sorok számozása
             while line := dfile.readline():
                 linecount += 1  # sor szám +1
-                # log.console(line.rstrip())
                 self.loadedData.append(line.rstrip().split(","))
         for entry in self.loadedData:
             if entry[0] == "DEVICE":
@@ -672,7 +607,6 @@ class HASS:
             linecount = 0  # sorok számozása
             while line := dfile.readline():
                 linecount += 1  # sor szám +1
-                # log.console(line.rstrip())
                 self.loadedData.append(line.rstrip().split(","))
         for entry in self.loadedData:
             if entry[0] == "DEVICE":
@@ -830,15 +764,11 @@ class HASS:
                 parentDevice = device
         devicedata = self.returnLongDeviceJSON(parentDevice[1], parentDevice[2], parentDevice[3], parentDevice[4], parentDevice[5], parentDevice[6], parentDevice[7])
         pubPayload = "{" + f"{entitydata},{devicedata}" + "}"
-        # log.console(pubPayload)
-        # homeassistant/domain(switch,sensor,stb)/id(mac?)/config
-        try:
+        try:  # homeassistant/domain(switch,sensor,stb)/id(mac?)/config
             pubTopic = f"homeassistant/{entity[0].lower()}/{entity[3].replace('/hass', '').replace('/', '_')}/config"
         except:
             pubTopic = f"homeassistant/{entity[1].lower()}/{entity[3].replace('/hass', '').replace('/', '_')}/config"
             log.warning(f"No domain defined for entity {entity[1]}")
-        # log.console(pubTopic)
-        # log.console("\n")
         send = True
         for element in self.nonDefinedVars:
             if element in pubPayload:
@@ -864,14 +794,12 @@ class HASS:
             response = response.text.split("},{")
             for element in response:
                 if "mcass" in element:
-                    # print(element)
                     inhass.append(element)
             indexOfEntityToBeSentToHass = []  # currently there's no reliable way to check if a device exist in hass, since the API does not return unique id, only entity_id, which is created by "<device_name>_<entity_name>", because of this currently we are going by entity id
             for i in range(0, len(self.entities)):
                 for j in range(0, len(inhass)):
                     if str(f'{"_".join(self.entities[i][2].split("_", 2)[:2])}_{self.entities[i][1].split("(")[0].lower()}'.replace("-", "_")) == str(inhass[j]).split('entity_id":"')[1].split(",")[0][:-1].split(".")[1]:
                         indexOfEntityToBeSentToHass.append(int(i))
-            # print(indexOfEntityToBeSentToHass)
             for i in range(0, len(self.entities)):
                 if i in indexOfEntityToBeSentToHass:
                     continue
@@ -925,7 +853,6 @@ class HASS:
             linecount = 0  # sorok számozása
             while line := dfile.readline():
                 linecount += 1  # sor szám +1
-                # log.console(line.rstrip())
                 tempHold.append(line.rstrip())
         for line in tempHold:
             if line.split(",")[2].lower().replace("-", "_") == uniqueid.lower():
@@ -974,7 +901,6 @@ class HASS:
             linecount = 0  # sorok számozása
             while line := dfile.readline():
                 linecount += 1  # sor szám +1
-                # log.console(line.rstrip())
                 tempHold.append(line.rstrip())
         if len(device.split("@")) == 2:
             for entry in tempHold:
@@ -1068,11 +994,9 @@ class HASS:
                 for peripheral in device[2].split("/"):
                     try:
                         if peripheral.split("@")[1].split("(")[0] == name:
-                            # print("ok")
                             peripheralType = peripheral.split("@")[0]
                             domain = peripheral.split("@")[1].split("(")[1][:-1]
                     except:
-                        # print("failed")
                         if peripheral.split("@")[1] == name:
                             peripheralType = peripheral.split("@")[0]
         if domain == "":
@@ -1099,9 +1023,6 @@ class HASS:
                 ENTITY_CATEGORY = domaintype[1]
                 if ICON == "ICON":
                     ICON = domaintype[2]
-        # print(UNIT_OF_MEASUREMENT)
-        # print(ENTITY_CATEGORY)
-        # print(ICON)
         if sensi != "":
             sensi = f"_{sensi}"
         ha.updateData(f"{mac}@{name}{sensi}", f"UNIT_OF_MEASUREMENT={UNIT_OF_MEASUREMENT},ENTITY_CATEGORY={ENTITY_CATEGORY},ICON={ICON}")
@@ -1122,7 +1043,6 @@ class HASS:
                     self.setAllSensorsOfDeviceToOffline(entry[1])
                     log.error(f"Availability check failed for device {entry[1]}")  # get the avail topic for it and send unavaible message
                 elif result == "Successful":
-                    # log.warning("TBD IMPLEMENT SUCCESSUL PING TO AVAILABILITY ON habár szerintem ide nem kell semmi mert ha jon adat az entitytol akkor online lesz az entity de a tobbit azert nem huznam fel onlinera")
                     log.info(f"Availability check succeeded for device {entry[1]} that was previously unavailable")
                     log.console(f"Availability check succeeded for device {entry[1]}")  # get the avail topic for it and send avaible message
                 else:
@@ -1130,7 +1050,6 @@ class HASS:
             self.startedPings.remove(entry)
 
     def setAllSensorsOfDeviceToOffline(self, device):
-        print("in setAllSensorsOfDeviceToOffline")
         mac = device.replace("mcass", "")
         for entry in self.entities:
             if entry[0] == "SENSOR":
@@ -1190,14 +1109,8 @@ ha = ""
 if HaState == "ON":
     log.info("Starting HASS...")
     ha = HASS()
-    # ha.kiirALL()
     ha.kiirOnlyNew()
     ha.reloadData()
-    # ha.syncToHass()
-    # print("getDefaultData")
-    # ha.getDefaultData("3C-AB-72-96-52-F4", "DHT_Humidity")
-    # ha.getDefaultData("3C-AB-72-96-52-F4", "LightSensor")
-    # ha.syncIconFromHass()
 else:
     log.info("Skipping the startup off HASS, as it is not configured")
 
@@ -1259,52 +1172,43 @@ class ProtocolBook:
     def testn(self, command):
         if command == "getID":
             return "T2"
-        # print("test normal")
 
     def tests(self, command):
         if command == "getID":
             return "T1"
-        # print("test short")
 
     def testl(self, command):
         if command == "getID":
             return "T3"
-        # print("test long")
 
     def teste(self, command):
         if command == "getID":
             return "T0"
-        # print("test everyloop")
 
     def protShort(self):
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "short":
-                # log.console("Executes short protocols")
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def protNorm(self):
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "normal":
-                # log.console("Executes normal protocols")
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def protLong(self):
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "long":
-                # log.console("Executes long protocols")
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def everyLoop(self):
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "every":
-                # log.console("Executes protocols every loop")
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def dailyCheck(self):
         global isFinished
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "daily":
-                # log.console("Executes protocols daily")
                 self.protDict[self.protocollist[i][0]](self, "none")
         isFinished = True
 
@@ -1313,8 +1217,6 @@ class ProtocolBook:
             return "HA1"
         FUNCTION_NAME = "frequencyCheckern"
         NAME_OF_SISTER_FUNC = "dataGettern"
-        # ha a lentebbi megy akkor normal
-        # ha nem megy akkor long
         AmmOfMissingData = ha.getAmmountOfMissing()
         if AmmOfMissingData > 25:  # ha 25%nal tobb hianyzik
             for protocol in self.protocollist:  # nezd vegig a listat
@@ -1343,7 +1245,6 @@ class ProtocolBook:
                             if selfprot[2] != "long":  # ha eddig nem normalban voltal
                                 selfprot[2] = "long"  # rakd at longra
                                 log.info("dataGetter protocol is stopped, swithing frequencyChecker to long")
-
                 if protocol[2] != "off":  # ha megy
                     for selfprot in self.protocollist:  # nezd vegig a listat
                         if selfprot[1] == FUNCTION_NAME:  # ha megtalaltad magad
@@ -1351,8 +1252,7 @@ class ProtocolBook:
                                 selfprot[2] = "normal"  # rakd at normalra magad
                                 log.info("dataGetter protocol is going, swithing frequencyChecker to normal")
 
-    def dataGettern(self, command):  # !!!!! a fenti protocolba stringkent ez a func name van megadva, ha itt atirod ird at ott is
-        # ha az adatok 50%a hianyzik normal, ha 25%a akkor long, ha semmi akkor off
+    def dataGettern(self, command):  # !!!!! a fenti protocolba stringkent ez a func name van megadva, ha itt atirod ird at ott is  # ha az adatok 50%a hianyzik normal, ha 25%a akkor long, ha semmi akkor off
         attempts = 0
         if command == "getID":
             return "HA2"
@@ -1388,7 +1288,7 @@ class ProtocolBook:
     def HassSyncl(self, command):
         if command == "getID":
             return "HA5"
-        if SyncOnlyWhenOnTestServer:  # old was if SyncOnlyWhenOnTestServer == True which is if True == True
+        if SyncOnlyWhenOnTestServer:
             if HassIP == "192.168.0.150":
                 ha.syncToHass()
         else:
@@ -1482,7 +1382,6 @@ log.info("Succesfully loaded and connected to MQTT broker")
 
 
 def extract_address(message):
-    # print(message.split("'")[1])
     for i in range(0, len(message)-14):
         if message[i+2] == message[i+5] == message[i+8] == message[i+11] == message[i+14]:
             address = f"{message[i]}{message[i+1]}{message[i+2]}{message[i+3]}{message[i+4]}{message[i+5]}{message[i+6]}{message[i+7]}{message[i+8]}{message[i+9]}{message[i+10]}{message[i+11]}{message[i+12]}{message[i+13]}{message[i+14]}{message[i+15]}{message[i+16]}"
@@ -1499,21 +1398,6 @@ def send_config(address, config):
     message = f"{address},{config[1]}"
     client.publish(configrepltopic, message)
     log.info(f"Sent config to {message}")
-
-
-def ping(address, numberofpings):  # ping start
-    for i in range(0, len(ping_tasks)):
-        if address == ping_tasks[i][0]:
-            log.info(f"Address {address} already in ping que, skipping")
-            return
-    ping_tasks.append([address, numberofpings, numberofpings, 1, 0, 0, 0, 0])
-
-
-def ping_end(address):
-    ct = time.monotonic()
-    for i in range(0, len(ping_tasks)):
-        if address == ping_tasks[i][0]:
-            ping_tasks[i][4] = ct
 
 
 def domainRemover(input):
@@ -1556,7 +1440,6 @@ def on_message(client, userData, msg):
         for i in range(0, len(configtable)):
             if configtable[i][1] == msg.topic:
                 address = configtable[i][0]
-                # ping_end(address) old ping
                 p.pingend(address)
 
     if str(msg.payload) == "b'PRTCL_PINCONFIG:REQUEST'":  # pinconfig request ---#PRTCL_PINCONFIG:config
@@ -1634,22 +1517,16 @@ def on_message(client, userData, msg):
                                 name = name.split("_")[0]
                             if name in entry:
                                 if len(entry.split("(")) == 2:  # ha tud (-ra splitelni akkor van domain definialva
-                                    # SensorName = entry.split("@")[1].split("(")[0]
                                     Domain = entry.split("@")[1].split("(")[1].split(")")[0]
                                 else:
                                     continue
-                                    # SensorName = entry.split("@")[1]
 
-                # get status topic
-                topic = ha.getStatusTopic(SensorName, Device, Domain)
+                topic = ha.getStatusTopic(SensorName, Device, Domain)  # get status topic
                 availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
                 if topic is not None:
                     inlastAmm = 5  # might have to set higher if using multiple devices
                     client.publish(topic, value)
                     client.publish(availtopic, "online")
-                    # check if device failed previoulsy
-                    # if yes
-                    # send forceAllSensorValues
                     if log.inLastX(inlastAmm, f"Availability check failed for device mcass{Device.lower()}") is True:
                         log.info(f"Ping failed for device {Device} previously, sending force values command\n")
                         client.publish(str(msg.topic), "PRTCL_FORCEVALUES")
@@ -1736,45 +1613,12 @@ def runTimeLoop():
             dailyRunAlready = False
         if (datetime.datetime.now().hour >= 23 or datetime.datetime.now().hour <= 1) and dailyRunAlready is False:
             dailyRunAlready = True
-            # prot.dailyCheck() #ezek nagyon hosszuk lesznek szal egy kulon threadbe kene rakni ezeket
             daily = threading.Thread(target=prot.dailyCheck)
             daily.start()
         if isFinished:
             daily.join()
             isFinished = False
     # *****************************************************************************************************************************************************************************************************************
-        if False:  # og ping
-            if len(ping_tasks) != 0:  # pingelés func
-                for i in reversed(range(0, len(ping_tasks))):  # törlés és kiiras
-                    if ping_tasks[i][6] + ping_tasks[i][7] == ping_tasks[i][2]:  # kiiras
-                        if ping_tasks[i][6] == 0:  # nem volt válaszolt ping
-                            log.warning(f"\nPing failed: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\n")
-                        if ping_tasks[i][6] != 0:  # volt valaszolt ping
-                            log.console(f"\nPing results: {ping_tasks[i][6]} success, {ping_tasks[i][7]} failed out of {ping_tasks[i][2]}\nAvarage time was {ping_tasks[i][5]/ping_tasks[i][6]}\n\n")
-                        ping_tasks.pop(i)  # torles
-                for i in range(0, len(ping_tasks)):  # pingtimecalc
-                    if ping_tasks[i][3] < ping_tasks[i][4]:  # ha pingstart hamarabb volt mint pingend
-                        pingtime = ping_tasks[i][4] - ping_tasks[i][3]  # calc pingtime
-                        if pingtime < ping_timeout:  # ha nem timoutolt
-                            log.console(pingtime)
-                            ping_tasks[i][5] = ping_tasks[i][5] + pingtime  # add to pingtimesum
-                            ping_tasks[i][6] += 1  # increase succescounter by 1
-                        else:
-                            log.info(f"{ping_tasks[i][0]} lassan valaszolt: {pingtime} seconds")
-                            ping_tasks[i][7] += 1  # add one to timeout
-
-                    if ping_tasks[i][3] > ping_tasks[i][4] and ping_tasks[i][3] + ping_timeout < time.monotonic() and ping_tasks[i][3] != 1:  # nem jött válasz timout (ha pingtart nagyobb mint pingend (elozobol) ÉS pingstart + timout kevesebb mint mostani ido ÉS nem kezdőállapot
-                        ping_tasks[i][7] += 1  # add one to timout
-                for i in range(0, len(ping_tasks)):  # send ping
-                    if (ping_tasks[i][3] < ping_tasks[i][4] and ping_tasks[i][4] - ping_tasks[i][3] < ping_timeout) or (ping_tasks[i][3] > ping_tasks[i][4] and ping_tasks[i][3] + ping_timeout < time.monotonic()):  # ha lepingelt vagy timoutolt
-                        for j in range(0, len(configtable)):
-                            if ping_tasks[i][0] == configtable[j][0]:
-                                topic = configtable[j][1]
-                        log.console(ping_tasks)
-                        client.publish(topic, "ping")
-                        ping_tasks[i][3] = time.monotonic()
-                        ping_tasks[i][1] -= 1
-                time.sleep(0.25)
 
         if True:  # new ping
             p.ping_runtime()
@@ -1789,16 +1633,12 @@ loop.start()
 # WEBPAGE PART ------------------------------
 import json
 from http.server import SimpleHTTPRequestHandler, HTTPServer
-# from urllib.parse import urlparse, parse_qs
 
 LOG_HISTORY = []
 
 
 def add_log(message, tag):
-    # timestamp = time.strftime("%H:%M:%S")
-    # entry = f'[{tag.upper()}] [{time.strftime("%H:%M:%S")}]: {message}'
     LOG_HISTORY.append(f'[{tag.upper()}] [{time.strftime("%H:%M:%S")}]: {message}')
-    # print(entry)
 
 
 CONFIG_FILES = {
