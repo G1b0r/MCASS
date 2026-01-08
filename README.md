@@ -14,7 +14,7 @@ On the long run I want to create two main versions of this, with maybe a third o
    - End devices would use MDNS to find the server and connect to it
    - Also would use Mosquito built into HASS with no option for seperate broker
  - Enterprise edition
-   - Two separate brokers
+   - Two separate brokers *Might reconsider*
     - The first one would be responsible for the base configuration the device, and this server would have a fix IP address on every network calculated by a simple algorith (eg: take the 15th avaible IP of the network, or the median IP of the network.)
     - The second one would be where the actual traffic and communication between the server and end devices would take place. This broker can take any IP
    - It could be configurable in the server which IP the second broker would be in, and the configuration would be sent via the first broker in the initial configuration of the end device.
@@ -22,38 +22,38 @@ On the long run I want to create two main versions of this, with maybe a third o
 
 ### Current standing:
 
-In a few words: Very alpha testing.  
-On the end device part it is a midway and base code currently for the two versions. It is only missing the MDNS and the IP based connection. (It is using a fix programmed IP for testing and development)  
-On the server side it's very close to a beta version. The server configuration is avaible, I'm currently working on the HASS side so that all devices are automatically created in HASS via MQTT Discovery.
+In a few words: Alpha  
+Most of the server side stuff is done, there are some bugfixes that need to be done, and some finalisation is required  
+On end-device side I would consider it almost done. Also some bug-fixes and peripheral support expansion  
 
 ### Next steps in development (what to be expected):
 
-Finish the HASS configuration part 
-  - Implement the forwarder, which is responsible for forwarding the state and control data from end device to HASS and vice versa
-  - Implement the ping function to check the availability of devices and report it to HASS
-  - HASS syncronisation so something got changed in HASS (eg: Icon of entity) it is updated in the server
+Implement a protocol where it checks if the end device supports a certain sensor, and deal with it appropriately (Currently the end device ignores a not supported hardware if it was given in the config, with no feedback what so ever, so there has to be a protocol to ask the end device for what is has a support for (It is stored in the program))  
 
-Implement some protocols for checking the validity of the information on devices (eg: if the software got updated on it)  
-Implement a protocol where it checks if the end device supports a certain sensor, and deal with it appropriately (Currently the end device ignores a not supported hardware if it was given in the config, with no feedback what so ever, so there has to be a protocol to ask the end device for what is has a support for (It is stored in the program))
+Support for remote nodes.  
+Fix MDNS and finish the programs for Home version.  
+Support more external hardware, and start translating for other boards.  
 
 ### Long term goals: 
 
 Of course making it of the most useful projects for the community  
   
 But seriously (not in order):
-  - Separating the Home and Enterprise versions
-  - Adding support for more off board hardware (NFC readers, Oxigen sensors and anything that is requested and can be fulfilled)
-  - Adding support for more boards (Expand and adapt for ESP, Arduino boards and any development board that is widespread among the IOT community)
-  - Adding option for backup server
+  - **Separating the Home and Enterprise versions**
+  - **Fix MDNS**
+  - **Adding support for more off board hardware (NFC readers, Oxigen sensors and anything that is requested and can be fulfilled)**
+  - **Adding support for more boards (Expand and adapt for ESP, Arduino boards and any development board that is widespread among the IOT community)**
+  - **Adding option for backup server**
   - Adding support for EEPROM caching so initial setup of end devices are faster and create less stress on the server (although a checkup of the saved config is necessary to find out if it is still valid or need to be re-cached)
-  - Adding support for remote nodes. These would leverage the connection of a 'main' end device while using it sort of like a proxy for communicating with the server, this way the network wouldn't be loaded with devices. This would probably use I2C as the form of communicating between the remote node (or subdevice) and the end device with the actual network connection
+  - **Adding support for remote nodes. These would leverage the connection of a 'main' end device while using it sort of like a proxy for communicating with the server, this way the network wouldn't be loaded with devices. This would probably use I2C as the form of communicating between the remote node (or subdevice) and the end device with the actual network connection**
   - Remote control (maybe web?) of the main server, so it could be configured from a remote computer from the web and not in a txt file directly on the server.
   - Remote control of end devices, so if it has a config changed it could be updated without the need to restart the device and go there physically (besides changing the hardware)
-  - Runtime reconfiguration and restarts both on server and end device side. This way if a configuration got changed (eg: en device got a new sensor) we do not need to restart the entire server or device
-  - And other ideas that may come with feature requests....
-  - Maybe change the way availability checks are done, because currently we are pinging every device, even if it was never connected to the server
-  - Multithreading (mainly on server side, but possibly on any end device that supports it) # Done, but I'm going to keep this here
-
+  - *Runtime reconfiguration and restarts both on server and end device side. This way if a configuration got changed (eg: en device got a new sensor) we do not need to restart the entire server or device # Partially done, restarts need to be implemented*
+  - **And other ideas that may come with feature requests....**
+  - *Maybe change the way availability checks are done, because currently we are pinging every device, even if it was never connected to the server*
+  - *Multithreading (mainly on server side, but possibly on any end device that supports it) # Done, but I'm going to keep this here*
+  
+(Bolds are to be done, italics are partially done, normal text is completely done)  
     
   
 ### Closing notes:

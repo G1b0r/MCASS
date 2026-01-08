@@ -110,17 +110,19 @@ Pinconfig broken up more:
     - (Sensor)     *Domain*
     - 7            *Pin*
 
-# Workflow  
-This section is ment to make the code's workflow more understandable in a schematic form
+# Supported hardware  
+  
+### Main boards:  
+  - RP2040ETH
 
-## Server startup
+### Remote node boards
+  - None yet
 
-## Server self-jobs
+### External peripherals
+  - Analog Read, PWM out, Digital Read, Digital Write
+  - DHT11/22 Temperature and Humidity sensor
+  - BMP180/085 Temperature and Pressure sensor
+  - BH1750 Light sensor
+  - Two pin rotary encoders
 
-## Server OnEvent jobs
-
-## End device startup
-
-## End device self-jobs
-
-## End device OnEvent jobs
+### This list is very brief, but I want to finish the main parts before going on these "sidequests", and once I have phisical hardware with me adding support for them is pretty fast
