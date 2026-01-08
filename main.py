@@ -1615,7 +1615,7 @@ def runTimeLoop():
             dailyRunAlready = True
             daily = threading.Thread(target=prot.dailyCheck)
             daily.start()
-        if isFinished:
+        if isFinished and dailyRunAlready:
             daily.join()
             isFinished = False
     # *****************************************************************************************************************************************************************************************************************
