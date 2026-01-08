@@ -169,21 +169,21 @@ class Logger3:
     def console(self, info):  # print to console only
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        file = open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8")
-        file.write(f"\n[Console] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-        file.close()
+        with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
+            file.write(f"\n[Console] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
+        # file.close()
 
     def info(self, info):
         self.forwardToWeb(info, "info")
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        file = open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8")
-        file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
-        file.close()
-        file = open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8")
-        file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
-        file.close()
+        with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
+            file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
+        # file.close()
+        with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
+            file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
+        # file.close()
 
     def warning(self, info):
         # ---- LOGIC TO NOT SEND MULTIPLES WITHIN TIME ---- #
@@ -202,13 +202,13 @@ class Logger3:
         if isalreadyin is False:
             self.forwardToWeb(info, "warning")
             print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-            file = open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8")
-            file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
-            file.close()
+            with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
+                file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
+            # file.close()
             self.timeoutlist.append(f"{datetime.datetime.now() + datetime.timedelta(minutes=self.timeoutforwarning)}*[Warning]: {info} FROM {wherefrom}".split("*"))
-            file = open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8")
-            file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
-            file.close()
+            with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
+                file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
+            # file.close()
 
     def error(self, info):
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -226,18 +226,18 @@ class Logger3:
         if count < self.error_max_rep + 1:
             self.forwardToWeb(info, "error")
             print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-            file = open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8")
-            file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
-            file.close()
-            file = open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8")
-            file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
-            file.close()
+            with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
+                file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
+            # file.close()
+            with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
+                file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
+            # file.close()
 
     def inLastX(self, x, text):
         lastlines = []
         with open(f"{self.filepath}{self.filename}_log3.txt", encoding='UTF-8') as file:
-            for line in (file.readlines() [-x:]):
-                #print(line, end ='')
+            for line in (file.readlines()[-x:]):
+                # print(line, end ='')
                 lastlines.append(line)
         for line in lastlines:
             if text in line:
@@ -256,48 +256,49 @@ with open("CONFIGURATION.txt", "a+", encoding='UTF-8') as configfile:
         linecontent = line.rstrip().split(" #")[0].replace(" ", "").replace(",", "").replace('"', "")
         if linecontent[0] != "#":
             log.console(linecontent)
-            if linecontent.split("=")[0] == "PROTOCOL_TIMEOUT":
+            param = linecontent.split("=")[0]
+            if param == "PROTOCOL_TIMEOUT":
                 PROTOCOL_TIMEOUT = int(linecontent.split("=")[1])
-            elif linecontent.split("=")[0] == "PROTOCOL_TIMEOUT_SHORT":
+            elif param == "PROTOCOL_TIMEOUT_SHORT":
                 PROTOCOL_TIMEOUT_SHORT = int(linecontent.split("=")[1])
-            elif linecontent.split("=")[0] == "PROTOCOL_TIMEOUT_LONG":
+            elif param == "PROTOCOL_TIMEOUT_LONG":
                 PROTOCOL_TIMEOUT_LONG = int(linecontent.split("=")[1])
-            elif linecontent.split("=")[0] == "BROKER":
+            elif param == "BROKER":
                 broker = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "PORT":
+            elif param == "PORT":
                 port = int(linecontent.split("=")[1])
-            elif linecontent.split("=")[0] == "CONFIGREQUEST":
+            elif param == "CONFIGREQUEST":
                 configreqtopic = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "CONFIGREPLY":
+            elif param == "CONFIGREPLY":
                 configrepltopic = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "DEVICETOPIC":
+            elif param == "DEVICETOPIC":
                 devicetopic = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "USERNAME":
+            elif param == "USERNAME":
                 username = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "PASSWORD":
+            elif param == "PASSWORD":
                 password = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "CLIENT_ID":
+            elif param == "CLIENT_ID":
                 client_id = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "TBCCONFLICTHANDLE":
+            elif param == "TBCCONFLICTHANDLE":
                 TBCCONFLICTHANDLE = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "HAK":
+            elif param == "HAK":
                 HassAPIkey = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "HASS":
+            elif param == "HASS":
                 if linecontent.split("=")[1] == "BROKER":
                     HassIP = broker
                 else:
                     HassIP = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "L3_EMR":
+            elif param == "L3_EMR":
                 L3error_max_rep = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "L3_EMRW":
+            elif param == "L3_EMRW":
                 L3error_max_rep_within = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "L3_TOF":
+            elif param == "L3_TOF":
                 L3timeoutforwarning = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "P2_MPS":
+            elif param == "P2_MPS":
                 P2max_ping_storage = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "MQTTDISCOVERY":
+            elif param == "MQTTDISCOVERY":
                 HaState = linecontent.split("=")[1]
-            elif linecontent.split("=")[0] == "WEBCONTROL":
+            elif param == "WEBCONTROL":
                 if linecontent.split("=")[1] == "ON":
                     webcontrol = True
                 elif linecontent.split("=")[1] == "OFF":
@@ -311,6 +312,8 @@ if HassIP == "":
 
 
 log.info("Loading device configurations...")
+
+
 def loadConfigTable():
     with open("configtable.txt", 'a+', encoding='UTF-8') as cfile:  # a+: Read and append. Pointer at end. Creates file if it doesn't exist. was 'r' earlier
         cfile.seek(0)
@@ -376,7 +379,7 @@ def loadConfigTable():
 
                     existing_topics = []
                     matchcount = 0
-                    for entry in configtable:
+                    for entry in configtable:  # ha nem minden ciklusban toltjuk ujra fel 0rol akkor jobb lenne
                         existing_topics.append(entry[1])
                     for et in existing_topics:
                         if configtable[-1][1] == et:
@@ -384,7 +387,6 @@ def loadConfigTable():
                     if matchcount > 1:
                         tobedeleted = True
                         log.error(f"Duplicate device topic in line {linecount}. Removing from configtable")
-
 
                     log.console(configtable[-1])
             else:
@@ -394,21 +396,25 @@ def loadConfigTable():
                 del configtable[-1]
                 del deviceData[-1]
     log.info(f"Ammount of entries in configtable: {len(configtable)}")
+
+
 loadConfigTable()
+
 
 def reloadConfigTable():
     log.info("Reloading configtable")
     try:
         global configtable
+        global deviceData
         configtable = []
         deviceData = []
         loadConfigTable()
         return "OK"
     except Exception as e:
-        log.error(f"Error occured while reloading configtable.txt: {e}")
+        log.error(f"Error occurred while reloading configtable.txt: {e}")
         return "ERROR"
-# ha configfileba van es tbcbe is akkor vagy error vagy vegye ki tbcbol
-# readback of tbc and send error for them
+
+
 log.console(configtable)
 
 
@@ -454,6 +460,7 @@ def tbc(mac_address):
             tobeconfigured.write(f"\n{mac_address}")
         tobeconfigured.close()
 
+
 def setRuntimeDataPing(mac, result):
     for i in range(0, len(deviceData)):
         if deviceData[i][0] == mac:
@@ -484,8 +491,8 @@ class Ping2:
             for entry in self.ping_tasks2:
                 if entry[8] == ID:
                     isok = False
-        for pt in range(0, len(self.ping_tasks2)):
-            if address == self.ping_tasks2[pt][0]:
+        for pt in self.ping_tasks2:
+            if address == pt[0]:
                 log.info(f"Address {address} already in ping que, skipping")
                 return
         self.ping_tasks2.append([address, numberofpings, numberofpings, 1, 0, 0, 0, 0, ID])
@@ -493,11 +500,11 @@ class Ping2:
 
     def pingend(self, address):
         ct = time.monotonic()
-        for pe in range(0, len(self.ping_tasks2)):
-            if address == self.ping_tasks2[pe][0]:
-                self.ping_tasks2[pe][4] = ct
+        for pe in self.ping_tasks2:
+            if address == pe[0]:
+                pe[4] = ct
 
-    def ping_runtime(self):
+    def ping_runtime(self):  # ebben is lehetne sokkat egyszeriusiteni ha kivennenk a "in range" reszeket
         while len(self.ping_results2) > self.max_ping_storage:
             self.ping_results2.pop(0)
         if len(self.ping_tasks2) != 0:  # pingelés func
@@ -556,9 +563,9 @@ class HASS:
     # send empty to delete device
 
     # IDEA BUT I DONT I WILL DO IT CAUSE ITS NOT NEEDED   #kesz egy passziv availability check, ha eszkoz probalja olvasni de nem sikerul az error mellet visszakuld egy uzit h not avaible, ezt kene kiboviteni egy actival h rakerdez a szerver es ugy megnezi mindegyik sensort esetleg
-
-
     def JSONdispatch(self, params):
+        print("in jsondispatch")
+        print(params)
         if params[0] == "SENSOR":
             return self.returnSensorJSON(params[1], params[2], params[3], params[4], params[5], params[6], params[7])
         elif params[0] == "BINARY_SENSOR":
@@ -836,9 +843,8 @@ class HASS:
         for element in self.nonDefinedVars:
             if element in pubPayload:
                 send = False
-                log.error(f"TBD NEED TO DO A CYCLE TO GET DATA FROM DEVICE? REVRITE hassImportData.txt AND RESEND DATA")
-                log.error(f"{pubPayload}")
-        if send:  # original was if send == True de az True == True szoval igy jo
+                log.warning(f"Config was not sent to MQTT Discovery, due to missing information: {pubPayload}")
+        if send:
             client.publish(pubTopic, pubPayload)
 
     def syncToHass(self):
@@ -893,7 +899,7 @@ class HASS:
                     inhass.append(element)
             for i in range(0, len(self.entities)):
                 for j in range(0, len(inhass)):
-                    if self.entities[0][0] == "SENSOR":
+                    if self.entities[i][0] == "SENSOR":
                         if str(f'{"_".join(self.entities[i][2].split("_", 2)[:2])}_{self.entities[i][1].split("(")[0].lower()}'.replace("-", "_")) == str(inhass[j]).split('entity_id":"')[1].split(",")[0][:-1].split(".")[1]:  # ez ugyanaz az elem
                             if self.entities[i][6] == str(inhass[j]).split('"icon":"')[1].split('"')[0]:
                                 continue
@@ -912,8 +918,6 @@ class HASS:
             log.error(e)
 
     def replaceData(self, uniqueid, oldval, newval):
-        print("in replaceData")
-        print(uniqueid, oldval, newval)
         tempHold = []
         newlist = []
         with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
@@ -935,6 +939,7 @@ class HASS:
         self.reloadData()
 
     def updateData(self, device, values):
+        print("in updatedata")
         MANUFACTURER = "MANUFACTURER"
         MODEL = "MODEL"
         HW_VERSION = "HW_VERSION"
@@ -944,22 +949,24 @@ class HASS:
         ICON = "ICON"
         UNIT_OF_MEASUREMENT = "UNIT_OF_MEASUREMENT"
         for data in values.split(","):
-            if data.split("=")[0] == "MANUFACTURER":
-                MANUFACTURER = data.split("=")[1]
-            if data.split("=")[0] == "MODEL":
-                MODEL = data.split("=")[1]
-            if data.split("=")[0] == "HW_VERSION":
-                HW_VERSION = data.split("=")[1]
-            if data.split("=")[0] == "SW_VERSION":
-                SW_VERSION = data.split("=")[1]
-            if data.split("=")[0] == "CONFIGURL":
-                CONFIGURL = data.split("=")[1]
-            if data.split("=")[0] == "ENTITY_CATEGORY":
-                ENTITY_CATEGORY = data.split("=")[1]
-            if data.split("=")[0] == "ICON":
-                ICON = data.split("=")[1]
-            if data.split("=")[0] == "UNIT_OF_MEASUREMENT":
-                UNIT_OF_MEASUREMENT = data.split("=")[1]
+            param = data.split("=")[0]
+            value = data.split("=")[1]
+            if param == "MANUFACTURER":
+                MANUFACTURER = value
+            if param == "MODEL":
+                MODEL = value
+            if param == "HW_VERSION":
+                HW_VERSION = value
+            if param == "SW_VERSION":
+                SW_VERSION = value
+            if param == "CONFIGURL":
+                CONFIGURL = value
+            if param == "ENTITY_CATEGORY":
+                ENTITY_CATEGORY = value
+            if param == "ICON":
+                ICON = value
+            if param == "UNIT_OF_MEASUREMENT":
+                UNIT_OF_MEASUREMENT = value
         tempHold = []
         newlist = []
         with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
@@ -1099,7 +1106,6 @@ class HASS:
             sensi = f"_{sensi}"
         ha.updateData(f"{mac}@{name}{sensi}", f"UNIT_OF_MEASUREMENT={UNIT_OF_MEASUREMENT},ENTITY_CATEGORY={ENTITY_CATEGORY},ICON={ICON}")
 
-
     startedPings = []  # ID, unique id
 
     def checkAvailablity(self):
@@ -1116,7 +1122,8 @@ class HASS:
                     self.setAllSensorsOfDeviceToOffline(entry[1])
                     log.error(f"Availability check failed for device {entry[1]}")  # get the avail topic for it and send unavaible message
                 elif result == "Successful":
-                    log.warning("TBD IMPLEMENT SUCCESSUL PING TO AVAILABILITY ON habár szerintem ide nem kell semmi mert ha jon adat az entitytol akkor online lesz az entity de a tobbit azert nem huznam fel onlinera")
+                    # log.warning("TBD IMPLEMENT SUCCESSUL PING TO AVAILABILITY ON habár szerintem ide nem kell semmi mert ha jon adat az entitytol akkor online lesz az entity de a tobbit azert nem huznam fel onlinera")
+                    log.info(f"Availability check succeeded for device {entry[1]} that was previously unavailable")
                     log.console(f"Availability check succeeded for device {entry[1]}")  # get the avail topic for it and send avaible message
                 else:
                     log.error(f'Unknown result given to ping: "{result}"')
@@ -1176,7 +1183,8 @@ class HASS:
     def getDeviceDatas(self, mac):
         for device in self.devices:
             if mac == device[1].replace("MCASS_", ""):
-                return(device[3],device[4],device[5],device[6],device[7])
+                return(device[3], device[4], device[5], device[6], device[7])
+
 
 ha = ""
 if HaState == "ON":
@@ -1203,7 +1211,7 @@ class ProtocolBook:
     def __init__(self):
         var = 1
         for protocol in dir(ProtocolBook):
-            if "__" not in protocol and protocol != "protShort" and protocol != "protNorm" and protocol != "protLong" and protocol != "protocollist" and protocol != "protDict" and protocol != "everyLoop" and protocol != "dailyCheck":
+            if "__" not in protocol and protocol != "protShort" and protocol != "protNorm" and protocol != "protLong" and protocol != "protocollist" and protocol != "protDict" and protocol != "everyLoop" and protocol != "dailyCheck" and protocol != "helper":
                 attr = getattr(ProtocolBook, protocol)
                 if protocol[-1] == "s":
                     self.protocollist.append(str(f"{var}*{protocol}*short").split("*"))
@@ -1217,7 +1225,7 @@ class ProtocolBook:
                 elif protocol[-1] == "e":
                     self.protocollist.append(str(f"{var}*{protocol}*every").split("*"))
                     self.protDict[str(var)] = attr
-                elif protocol[-1] == "d": #daily
+                elif protocol[-1] == "d":  # daily
                     self.protocollist.append(str(f"{var}*{protocol}*daily").split("*"))
                     self.protDict[str(var)] = attr
                 else:
@@ -1291,7 +1299,9 @@ class ProtocolBook:
             if self.protocollist[i][2] == "every":
                 # log.console("Executes protocols every loop")
                 self.protDict[self.protocollist[i][0]](self, "none")
+
     def dailyCheck(self):
+        global isFinished
         for i in range(0, len(self.protocollist)):
             if self.protocollist[i][2] == "daily":
                 # log.console("Executes protocols daily")
@@ -1350,12 +1360,20 @@ class ProtocolBook:
         while data is None and attempts < 6:
             data = ha.getDataForRequest()
             attempts += 1
-        if len(data.split("@")) == 2:
-            ha.getDefaultData(data.split("@")[0], data.split("@")[1])  # ez megy internalba
-        else:
-            for device in configtable:
-                if device[0] == data.upper():
-                    client.publish(device[1], "PRTCL_GETINFO:SELF")  # get the data of the device itself
+        if data is None:
+            return
+        try:
+            if len(data.split("@")) == 2:
+                ha.getDefaultData(data.split("@")[0], data.split("@")[1])  # ez megy internalba
+            else:
+                for device in configtable:
+                    if device[0] == data.upper():
+                        client.publish(device[1], "PRTCL_GETINFO:SELF")  # get the data of the device itself
+        except Exception as e:
+            if str(e) == "'NoneType' object has no attribute 'split'":
+                log.error(f"Error occured in dataGettern protocol, no data was returned by getDataForRequest() from HASS")
+            else:
+                log.error(f"Unkown error occured in dataGettern protocol, error message was: {str(e)}")
 
     def avCheckerl(self, command):
         if command == "getID":
@@ -1416,7 +1434,6 @@ class ProtocolBook:
                     empty += 1
                 else:
                     filled += 1
-        missingrate = 0
         if empty != 0:
             missingrate = empty/(filled+empty)
         else:
@@ -1436,14 +1453,12 @@ class ProtocolBook:
                         protocol[2] = "long"  # rakd at normalra
                         log.info("Ammount of missing data is moderate in deviceData, switching getRuntimeDatForWebn protocol to long")
 
-        else: # ha 1 az osztas eredmenye szal minden megvan
+        else:  # ha 1 az osztas eredmenye szal minden megvan
             for protocol in self.protocollist:  # nezd vegig a listat
                 if protocol[1] == "getRuntimeDatForWebn":  # ha a nev egyezik a masikeval
                     if protocol[2] != "off":
                         protocol[2] = "off"  # rakd at normalra
                         log.info("No data is missing in deviceData, switching getRuntimeDatForWebn protocol off")
-
-
 
 
 log.info("Starting ProtocolBook...")
@@ -1514,6 +1529,8 @@ def domainRemover(input):
 
 
 delayResponseWithSecond = 0.25
+
+
 def on_message(client, userData, msg):
     log.console(f"Message ({msg.payload}) arrived from ({msg.topic})")
     if msg.topic == configreqtopic:
@@ -1531,10 +1548,9 @@ def on_message(client, userData, msg):
     if str(msg.payload) == "b'HERE'":
         for i in range(0, len(configtable)):
             if msg.topic == configtable[i][1]:
-                device = configtable[i][0]
-                log.info(f"Device {device} succesfully connected to own channel")
+                log.info(f"Device {configtable[i][0]} succesfully connected to own channel")
                 time.sleep(delayResponseWithSecond)
-                client.publish(msg.topic, "channel change ack")
+                client.publish(configtable[i][1], "channel change ack")
 
     if "b'ping ok'" == str(msg.payload):
         for i in range(0, len(configtable)):
@@ -1573,7 +1589,6 @@ def on_message(client, userData, msg):
         else:
             log.error(f'Unkown error level provided from {str(msg.topic)} with level {str(msg.payload).split(":")[0][-2:]}\nError message was: {str(msg.payload).split(":")[1][:-1]}')
 
-
     if "PRTCL_GIVEINFO_HW:" in str(msg.payload):
         device = ""
         giveninfo = str(msg.payload).split(":", 1)[1][:-1]
@@ -1603,7 +1618,6 @@ def on_message(client, userData, msg):
                     else:
                         log.error(f"Unkown data provided via protocol PRTCL_GIVEINFO_RT by device with mac address {device}, given info was {giveninfo}")
 
-
     if "PRTCL_VAL:" in str(msg.payload):  # value forwarder
         if HaState == "ON":
             if len(str(msg.payload).split("/")) < 2:  # ha single sensor
@@ -1630,12 +1644,12 @@ def on_message(client, userData, msg):
                 topic = ha.getStatusTopic(SensorName, Device, Domain)
                 availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
                 if topic is not None:
-                    inlastAmm = 5 #might have to set higher if using multiple devices
+                    inlastAmm = 5  # might have to set higher if using multiple devices
                     client.publish(topic, value)
                     client.publish(availtopic, "online")
-                    #check if device failed previoulsy
-                    #if yes
-                    #send forceAllSensorValues
+                    # check if device failed previoulsy
+                    # if yes
+                    # send forceAllSensorValues
                     if log.inLastX(inlastAmm, f"Availability check failed for device mcass{Device.lower()}") is True:
                         log.info(f"Ping failed for device {Device} previously, sending force values command\n")
                         client.publish(str(msg.topic), "PRTCL_FORCEVALUES")
@@ -1646,9 +1660,9 @@ def on_message(client, userData, msg):
 
     if "PRTCL_AVAILABILITY_OFF:" in str(msg.payload):
         if HaState == "ON":
-            name = str(msg.payload).split(",")[0].split(":")[1]
-            type = str(msg.payload).split(",")[1]
-            SensorName = name
+            ent_name = str(msg.payload).split(",")[0].split(":")[1]
+            ent_type = str(msg.payload).split(",")[1]
+            SensorName = ent_name
             Device = ""  # mac address
             Domain = ""
             for device in configtable:
@@ -1679,6 +1693,21 @@ def on_message(client, userData, msg):
             if entry[0] == device:
                 client.publish(entry[1], "PRTCL_GETINFO:SELF")  # get the data of the device itself
 
+    if "PRTCL_VALIDATE:" in str(msg.payload) and str(msg.payload) != "b'PRTCL_VALIDATE:RESPONSE_FAIL'" and str(msg.payload) != "b'PRTCL_VALIDATE:RESPONSE_OK'":
+        help = str(msg.payload).split(":")[1][:-1]
+        for entry in configtable:
+            if msg.topic == entry[1]:
+                if entry[0] != help.split(",")[0]:
+                    time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                    client.publish(msg.topic, "PRTCL_VALIDATE:RESPONSE_FAIL")
+                else:
+                    if domainRemover(entry[2]) != help.split(",")[1]:
+                        time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                        client.publish(entry[1], "PRTCL_VALIDATE:RESPONSE_FAIL")
+                    else:
+                        time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                        client.publish(entry[1], "PRTCL_VALIDATE:RESPONSE_OK")
+
 
 client.subscribe(configreqtopic)
 client.subscribe(devicetopic)
@@ -1687,6 +1716,7 @@ client.loop_start()
 
 dailyRunAlready = False
 isFinished = False
+
 
 def runTimeLoop():
     log.info("Started runtime loop")
@@ -1748,6 +1778,8 @@ def runTimeLoop():
 
         if True:  # new ping
             p.ping_runtime()
+
+
 loop = threading.Thread(target=runTimeLoop)
 loop.start()
 # *****************************************************************************************************************************************************************************************************************
@@ -1761,16 +1793,19 @@ from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 LOG_HISTORY = []
 
+
 def add_log(message, tag):
-    timestamp = time.strftime("%H:%M:%S")
-    entry = f"[{tag.upper()}] [{timestamp}]: {message}"
-    LOG_HISTORY.append(entry)
-    #print(entry)
+    # timestamp = time.strftime("%H:%M:%S")
+    # entry = f'[{tag.upper()}] [{time.strftime("%H:%M:%S")}]: {message}'
+    LOG_HISTORY.append(f'[{tag.upper()}] [{time.strftime("%H:%M:%S")}]: {message}')
+    # print(entry)
+
 
 CONFIG_FILES = {
     "configtable": "configtable.txt",
     "config": "CONFIGURATION.txt"
 }
+
 
 class MyHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
@@ -1812,14 +1847,14 @@ class MyHandler(SimpleHTTPRequestHandler):
 
                 elif cmd == "restart_server":
                     log.error("IMPLEMENT SERVER RESTART COMMAND")
-                    response = {"status": "error", "detail": "IMPLEMENT"} #change to succesful when implemented
+                    response = {"status": "error", "detail": "IMPLEMENT"}  # change to succesful when implemented
 
                 elif cmd == "reloadHASS":
                     if HaState == "OFF":
                         log.info("Skipping Hass reload, Hass is currently turned off")
                         response = {"status": "error", "detail": "HASS is turned off"}
                     else:
-                        #log.error("IMPLEMENT HASS CLASS RELOAD COMMAND")
+                        # log.error("IMPLEMENT HASS CLASS RELOAD COMMAND")
                         global ha
                         del ha
                         ha = HASS()
@@ -1827,7 +1862,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                         response = {"status": "success", "detail": "Reloaded successfully"}
 
                 else:
-                    #add_log("Unknown command.", "error")
+                    # add_log("Unknown command.", "error")
                     log.error("Unknown command provided from web interface")
                     response = {"status": "error", "detail": "Unknown command"}
 
@@ -1890,8 +1925,6 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             self.wfile.write(encoded)
-
-
 
         else:
             self.send_error(404)
@@ -2007,11 +2040,10 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(encoded)
 
-
         else:
             return super().do_GET()
 
-    def log_message(self, format, *args): # this is only here to disable the constant http request prints to console
+    def log_message(self, format, *args):  # this is only here to disable the constant http request prints to console
         pass
 
     def read_config(self, name):
@@ -2021,7 +2053,6 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
-
 
     def write_config(self, name, content):
         path = CONFIG_FILES.get(name)
@@ -2153,8 +2184,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(html.encode())
 
-
-    def handle_device_command(self, mac, cmd): #NEED TO TEST
+    def handle_device_command(self, mac, cmd):
         device_cfg = self.find_device_in_config(mac)
         device_runtime = self.find_device_in_runtime(mac)
 
@@ -2192,8 +2222,9 @@ def run_server():
     httpd = HTTPServer(("0.0.0.0", port), MyHandler)
     httpd.serve_forever()
 
-if webcontrol == True:
-    webserver = threading.Thread(target= run_server)
+
+if webcontrol:
+    webserver = threading.Thread(target=run_server)
     webserver.start()
 else:
     log.info("Web control disabled, skipping web start")
