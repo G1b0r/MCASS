@@ -105,7 +105,7 @@ HassAPIkey = ""
 HassIP = ""
 HaState = "OFF"
 
-L3error_max_rep = 5
+L3error_max_rep = 0
 L3error_max_rep_within = 100
 L3timeoutforwarning = 15
 P2max_ping_storage = 25
@@ -142,7 +142,11 @@ class Logger3:
         self.wll = webloglevel
         self.timeoutforwarning = L3timeoutforwarning
         self.error_max_rep = L3error_max_rep
-        self.error_max_rep_within = L3error_max_rep_within
+        if self.error_max_rep == 0:
+            self.error_max_rep = 9
+            self.error_max_rep_within == 1
+        else:
+            self.error_max_rep_within = L3error_max_rep_within
         self.filename = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S').replace(" ", "_").replace(":", "_")
         file = open(f"{self.filepath}{self.filename}_log3.txt", "w")
         file.close()
