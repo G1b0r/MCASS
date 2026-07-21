@@ -144,7 +144,7 @@ class Logger3:
         self.error_max_rep = L3error_max_rep
         if self.error_max_rep == 0:
             self.error_max_rep = 9
-            self.error_max_rep_within == 1
+            self.error_max_rep_within = 1
         else:
             self.error_max_rep_within = L3error_max_rep_within
         self.filename = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S').replace(" ", "_").replace(":", "_")
