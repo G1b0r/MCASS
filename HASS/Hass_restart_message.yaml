@@ -1,0 +1,21 @@
+alias: MCASSsendRestartMSG
+description: ""
+triggers:
+  - trigger: homeassistant
+    event: start
+conditions: []
+actions:
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 30
+      milliseconds: 0
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      evaluate_payload: false
+      qos: "1"
+      topic: MCASS/hass/restart
+      payload: RESTART
+      retain: true
+mode: single
