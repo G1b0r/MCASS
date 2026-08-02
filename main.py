@@ -726,6 +726,7 @@ class HASS:
                                ["LIGHT", "Control", "mdi:lightbulb"],
                                ["LIGHTRGB", "Control", "mdi:lightbulb"],
                                ["ENTITY", "unkown", "mdi:help-circle-outline"]]
+
     defautlUOMByType = [["DHT11", "Temperature", "Humidity", "°C", "%"],
                         ["DHT22", "Temperature", "Humidity", "°C", "%"],
                         ["BMP180", "Temperature", "Pressure", "°C", "Pa"],
@@ -734,6 +735,7 @@ class HASS:
                         ["Rotary", "Rotation", "idkRotation"],
                         ["AnalogRead", "ADC", "adc"],
                         ["DigitalRead", "Binary", "Bin"]]
+
     defaultIconByType = [["DHT11", "Temperature", "Humidity", "mdi:thermometer", "mdi:water-percent"],
                          ["DHT22", "Temperature", "Humidity", "mdi:thermometer", "mdi:water-percent"],
                          ["BMP180", "Temperature", "Pressure", "mdi:thermometer", "mdi:cloud"],
@@ -742,6 +744,7 @@ class HASS:
                          ["Rotary", "Rotation", "mdi:axis-z-rotate-counterclockwise"],
                          ["AnalogRead", "ADC", "mdi:leak"],
                          ["DigitalRead", "Binary", "mdi:toggle-switch-variant"]]
+
     dualSensor = []
     dualSensorSimple = []
 
@@ -1071,6 +1074,18 @@ class HASS:
         except Exception as e:
             log.error(e)
 
+    def sendAllToHass(self):
+        log.info("in sendAllToHass")
+        for i in range(0, len(self.entities)):
+            self.sendToHassIndex(i)
+            time.sleep(0.2)
+        for element in self.devices:
+            if element[0] == "DEVICE":
+                for entry in configtable:
+                    if element[1].split("_")[1] == entry[0]:
+                        client.publish(entry[1], "PRTCL_FORCEVALUES")
+                        break
+            time.sleep(0.25)
     def removeSyncToHass(self):
         print("in removeSyncToHass")
         global HassIP
@@ -1881,6 +1896,11 @@ def on_message(client, userData, msg):
         lastMessageTime[i+1] = lastMessageTime[i]
     lastMessageTime[0] = time.monotonic()
 
+    if msg.topic == "MCASS/hass/restart" and "RESTART" in str(msg.payload):
+        log.info("Hass was restarted, resending all entities")
+        client.publish("MCASS/hass/restart", "OK", qos=1, retain=True)
+        ha.sendAllToHass()
+
     if msg.topic == selftesttopic and "Self test message sent, due to not receiving message within given timeframe" in str(msg.payload):
         selfTestHang = False
         #for i in range(0, len(activeErrors)):
@@ -2091,6 +2111,7 @@ def subscribe():
     client.subscribe(devicetopic)
     client.subscribe(negotopic)
     client.subscribe(selftesttopic)
+    client.subscribe("MCASS/hass/restart")
 
 client.on_message = on_message
 client.loop_start()
@@ -3063,3 +3084,8 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 # ---- ---- ill lehet log3ba mehetne egy olyan update h az utolso 50 logot bent tartja memoriaban (50 az nem sok nem is kevés) és akkor nem a hattertarat kene gyepalni a folyamatos olvasasokkal (maybe 150 mert az ize i s150-el megy mostmar???)
 
 #maybe add a "last run" time data point for the protocol page on the web interface
+
+#valami stat page h mi az actual running config a serveren
+#mer menet kozben le lett veve a wll infora warningrol de a protocol freqchange infok nem jonnek at rajta (reload configtablebol is csak anniy jott ki amit a webes rész kezel)
+
+#ujrainditasonkent (hass ujraind) mindig levágja this entity is no longer provided by mqtt intergration- statebe (ujraaddolás után megy tovabb es megmarad a history is)
