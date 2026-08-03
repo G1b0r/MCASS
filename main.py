@@ -396,6 +396,7 @@ def loadConfig():
             exit(999)
 
         testHassKey()
+    log.info("Server data loaded")
 
 loadConfig()
 
@@ -1544,28 +1545,28 @@ class ProtocolBook:
 
     def protShort(self):
         for i in range(0, len(self.protocollist)):
-            if self.protocollist[i][2] == "short":
+            if self.protocollist[i][2] == "short" or self.protocollist[i][2] == "short_OR":
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def protNorm(self):
         for i in range(0, len(self.protocollist)):
-            if self.protocollist[i][2] == "normal":
+            if self.protocollist[i][2] == "normal" or self.protocollist[i][2] == "normal_OR":
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def protLong(self):
         for i in range(0, len(self.protocollist)):
-            if self.protocollist[i][2] == "long":
+            if self.protocollist[i][2] == "long" or self.protocollist[i][2] == "long_OR":
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def everyLoop(self):
         for i in range(0, len(self.protocollist)):
-            if self.protocollist[i][2] == "every":
+            if self.protocollist[i][2] == "every":  # no override option for every loop
                 self.protDict[self.protocollist[i][0]](self, "none")
 
     def dailyCheck(self):
         global isFinished
         for i in range(0, len(self.protocollist)):
-            if self.protocollist[i][2] == "daily":
+            if self.protocollist[i][2] == "daily":  # no override option currently for daily
                 self.protDict[self.protocollist[i][0]](self, "none")
         isFinished = True
 
