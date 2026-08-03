@@ -1087,6 +1087,7 @@ class HASS:
                         client.publish(entry[1], "PRTCL_FORCEVALUES")
                         break
             time.sleep(0.25)
+
     def removeSyncToHass(self):
         print("in removeSyncToHass")
         global HassIP
