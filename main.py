@@ -602,11 +602,10 @@ class Ping2:
         self.ping_tasks2.append([address, numberofpings, numberofpings, 1, 0, 0, 0, 0, ID])
         return ID
 
-    def pingend(self, address):
-        ct = time.monotonic()
+    def pingend(self, address, MessageReceiveTime):
         for pe in self.ping_tasks2:
             if address == pe[0]:
-                pe[4] = ct
+                pe[4] = MessageReceiveTime
 
     def ping_runtime(self):  # ebben is lehetne sokkat egyszeriusiteni ha kivennenk a "in range" reszeket
         while len(self.ping_results2) > self.max_ping_storage:
@@ -1944,10 +1943,11 @@ def on_message(client, userData, msg):
                 client.publish(configtable[i][1], "channel change ack")
 
     if "b'ping ok'" == str(msg.payload):
+        mrt = time.monotonic()
         for i in range(0, len(configtable)):
             if configtable[i][1] == msg.topic:
                 address = configtable[i][0]
-                p.pingend(address)
+                p.pingend(address, mrt)
 
     if str(msg.payload) == "b'PRTCL_PINCONFIG:REQUEST'":  # pinconfig request ---#PRTCL_PINCONFIG:config
         for i in range(0, len(configtable)):
