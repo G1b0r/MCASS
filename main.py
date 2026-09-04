@@ -408,7 +408,7 @@ if HassIP == "":
 log.info("Loading device configurations...")
 
 
-def loadConfigTable():
+def loadConfigTable(): # megoldani hogy a rosszul formázottakat ne csak magának memoryban javitsa hanem esetleg fileban is, mert most megtartotta a :-os elválasztást és a getRuntimeDatForWebn lehalt (data = get_device_config(deviceData[i][0]) returned None)
     with open("configtable.txt", 'a+', encoding='UTF-8') as cfile:  # a+: Read and append. Pointer at end. Creates file if it doesn't exist. was 'r' earlier
         cfile.seek(0)
         linecount = 0  # sorok számozása
@@ -546,15 +546,18 @@ def tbcreadback():
 
 
 def tbc(mac_address):
-    with open("tbc.txt", "a", encoding="UTF-8") as tobeconfigured:
-        alreadyaddedlist = []
+    alreadyaddedlist = []
+    with open("tbc.txt", "a+", encoding="UTF-8") as tobeconfigured:
+        tobeconfigured.seek(0)
         while line := tobeconfigured.readline():
-            alreadyaddedlist.append(line.rstrip())
-        if mac_address in alreadyaddedlist:
-            log.warning(f"Device with mac address {mac_address} is already in the to be configured list")
-        else:
+            text = line.rstrip()
+            alreadyaddedlist.append(text)
+    if mac_address in alreadyaddedlist:
+        log.warning(f"Device with mac address {mac_address} is already in the to be configured list")
+    else:
+        with open("tbc.txt", "a", encoding="UTF-8") as tobeconfigured:
             tobeconfigured.write(f"\n{mac_address}")
-        tobeconfigured.close()
+    #tobeconfigured.close()
 
 
 def setRuntimeDataPing(mac, result):
@@ -687,7 +690,7 @@ class HASS:
             icon = "mdi:leak"
         return(f'"icon":"{icon}","name":"{name}","unique_id":"{unique_id}","state_topic":"{state_topic}","unit_of_measurement":"{unit_of_measurement}","state_class":"measurement","availability":' + '{' + f'"topic":"{availability_topic}"' + '}')  # entity categroyt ki kellett venni mert nem ment tole a discovery ("entity_category":"{entity_category}",), added state class to hopefully solve long term statistics storage issue
 
-    def returnLongDeviceJSON(self, name, identifier, manufacturer, model, sw_version, hw_version, configurl):
+    def returnLongDeviceJSON(self, name, identifier, manufacturer, model, hw_version, sw_version, configurl):
         return(f'"device":' + '{' + f'"name":"{name}","identifiers":["{identifier}"],"manufacturer":"{manufacturer}","model":"{model}","hw_version":"{hw_version}","sw_version":"{sw_version}"' + '}')   # config urlt ki kellett venni mert nem mukodott tole a discovery (,"configuration_url":"{configurl}")
 
     def returnBinarySensorJSON(self, name, unique_id, state_topic, entity_category, icon, availability_topic):  # platform has to be binary sensor
@@ -941,6 +944,7 @@ class HASS:
                                     dfile.write(dataLine)
                 else:
                     continue
+        self.reloadData()
 
     def removeRemoved(self):
         inHassImport = []
@@ -1006,6 +1010,7 @@ class HASS:
                     linetowrite = f"{line[0]},{line[1]},{line[2]},{line[3]},{line[4]},{line[5]},{line[6]}"
                 dfile.write(linetowrite)
                 dfile.write("\n")
+        self.reloadData()
 
     def sendToHassIndex(self, index):
         entity = self.entities[index]
@@ -1104,13 +1109,13 @@ class HASS:
             inhass = []
             response = response.text.split("},{")
             for element in response:
-                if "mcass" in element:
+                if ".mcass_" in element and "automation." not in element:
                     inhass.append(element)
             inhassShort = []
             for j in range(0, len(inhass)):
                 inhassShort.append(str(inhass[j]).split('entity_id":"')[1].split(",")[0][:-1].split(".")[1])
             ToBeRemovedFromHass = inhassShort.copy()  # currently there's no reliable way to check if a device exist in hass, since the API does not return unique id, only entity_id, which is created by "<device_name>_<entity_name>", because of this currently we are going by entity id
-
+            #print("yolo3\n", ToBeRemovedFromHass, "\n", inhassShort)  #DO NOT REMOVE THIS. EVEN COMMENTED IT SOLVED AND ERROR WHICH IM NOW UNABLE TO REPLICATE AFTER ADDING THIS LINE
             for i in range(0, len(self.entities)):
                 if str(f'{"_".join(self.entities[i][2].split("_", 2)[:2])}_{self.entities[i][1].split("(")[0].lower()}'.replace("-", "_")) in inhassShort:
                     ToBeRemovedFromHass.remove(str(f'{"_".join(self.entities[i][2].split("_", 2)[:2])}_{self.entities[i][1].split("(")[0].lower()}'.replace("-", "_")))
@@ -1745,7 +1750,10 @@ class ProtocolBook:
                     ammofna += 1
             if ammofna > 1:
                 data = get_device_config(deviceData[i][0])
-                client.publish(data[1], "PRTCL_GETINFO:RUNTIME")
+                if data is not None:
+                    client.publish(data[1], "PRTCL_GETINFO:RUNTIME")
+                else:
+                    log.warning(f"No device data found for {deviceData[i][0]}")
                 break
             else:
                 continue
@@ -1855,10 +1863,11 @@ while True:
     break
 
 
-def extract_address(message):
+def extract_address(message): #also format
     for i in range(0, len(message)-14):
         if message[i+2] == message[i+5] == message[i+8] == message[i+11] == message[i+14]:
             address = f"{message[i]}{message[i+1]}{message[i+2]}{message[i+3]}{message[i+4]}{message[i+5]}{message[i+6]}{message[i+7]}{message[i+8]}{message[i+9]}{message[i+10]}{message[i+11]}{message[i+12]}{message[i+13]}{message[i+14]}{message[i+15]}{message[i+16]}"
+            address = address.replace("_", "-").replace(":", "-")
             return address
 
 
@@ -2069,6 +2078,23 @@ def on_message(client, userData, msg):
                     client.publish(availtopic, "offline")
                 else:
                     log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
+
+    if "PRTCL_SET_ONLINE" in str(msg.payload):
+        for element in configtable:
+            if element[1] == str(msg.topic):
+                for entity in element[2].split("/"):
+                    if str(msg.payload).split(":")[1].replace("'", "") in entity:
+                        helpentity = ""
+                        helpdomain = ""
+                        try:
+                            helpentity = entity.split("@")[1].split("(")[0]
+                            #helpdomain = entity.split("@")[1].split("(")[1:-1]
+                        except:
+                            helpentity = entity.split("@")[1]
+                            #helpdomain = ""
+                        print(helpentity, element[0], helpdomain)
+                        print(ha.getAvailabilityTopic(helpentity, element[0], helpdomain))
+                        client.publish(ha.getAvailabilityTopic(helpentity, element[0], helpdomain), "online")
 
     if "b'PRTCL_DVC_OK'" == str(msg.payload):
         device = ""
@@ -3091,3 +3117,13 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 #mer menet kozben le lett veve a wll infora warningrol de a protocol freqchange infok nem jonnek at rajta (reload configtablebol is csak anniy jott ki amit a webes rész kezel)
 
 #ujrainditasonkent (hass ujraind) mindig levágja this entity is no longer provided by mqtt intergration- statebe (ujraaddolás után megy tovabb es megmarad a history is)
+
+#change the way we reload the configtable
+#first load in all the data, then replace the currently used list
+#Most volt egy rosszul megirt config, azt rafrissitettem es legyilkolta az egesz mqtt-t meg mindent leölt
+
+#hogyha protocol frissiti a hassImportData.txt-t akkor hass syncronizálja már be az adatot a memoryba, mer igy oke h áttölti a változást de amig a memory nincs ujratöltve, amit nem tölt magától ujra addig nem aktualizálodik a friss adat
+
+#automatically send a reload pinconfig when relevant parts of config changed (Dont yet know how to implement in a good way)
+
+#qol upgrade idea: only send error for device av check failed if not in activerror (vagy ha az aktiverrorhoz berakas returnje true lett)

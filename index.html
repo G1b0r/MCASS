@@ -3,7 +3,7 @@
 <head>
     <title>MCASS Control Panel</title>
     <style>
-        body { font-family: Arial; margin: 40px; max-width: 600px; }
+        body { font-family: Arial; margin: 40px; max-width: 1800px; }
         button {
             padding: 10px 20px;
             margin: 6px;
@@ -20,62 +20,149 @@
         }
         .success { color: green; font-weight: bold; }
         .error { color: red; font-weight: bold; }
+        .main-container {
+            display: flex;
+            width: 100%;
+            gap: 20px;
+        }
+
+        .left-panel {
+            flex: 1;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-self: flex-start;
+        }
+
+        #errorTable {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        #errorTable th,
+        #errorTable td {
+            border: 1px solid #aaa;
+            padding: 8px;
+            text-align: left;
+            word-break: break-word;
+        }
+
+        #errorTable th {
+            background-color: #ddd;
+        }
     </style>
 </head>
-<body>
+    <body>
+        <div class="main-container">
+            <div class="left-panel">
+                <h2>MCASS Control Panel</h2>
 
-<h2>MCASS Control Panel</h2>
 
 <!--<button onclick="sendCommand('start')">Start</button>
 <button onclick="sendCommand('stop')">Stop</button>
 <button onclick="sendCommand('reset')">Reset</button>
 <button onclick="sendCommand('status')">Check Status</button>
 <br>-->
-<button onclick="sendCommand('reloadconfigtable')">Reload configtable</button>
-<button onclick="location.href='/edit/configtable'">Edit end-device configurations</button>
-<button onclick="location.href='/edit/config'">Edit server configuration</button>
-<button onclick="sendCommand('restart_server')">Restart server</button>
-<button onclick="sendCommand('reloadHASS')">Reload HASS</button>
-<button onclick="location.href='/devices'">Devices</button>
+                <button onclick="sendCommand('reloadconfigtable')">Reload configtable</button>
+                <button onclick="location.href='/edit/configtable'">Edit end-device configurations</button>
+                <button onclick="location.href='/edit/config'">Edit server configuration</button>
+                <button onclick="sendCommand('restart_server')">Restart server</button>
+                <button onclick="sendCommand('reloadHASS')">Reload HASS</button>
+                <button onclick="location.href='/devices'">Devices</button>
+                <button onclick="location.href='/protocols'">Protocol Handler</button>
+                <button onclick="sendCommand('reloadServerConfig')">Reload Server Config</button>
 
+                <p id="result"></p>
 
+                <h3>Log Output</h3>
+                <div id="log"></div>
 
-<p id="result"></p>
+                <script>
+                    async function sendCommand(cmd) {
+                        const resElem = document.getElementById("result");
 
-<h3>Log Output</h3>
-<div id="log"></div>
+                        const response = await fetch("/command", {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({ cmd })
+                        });
 
-<script>
-    async function sendCommand(cmd) {
-        const resElem = document.getElementById("result");
+                        const data = await response.json();
 
-        const response = await fetch("/command", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ cmd })
-        });
+                        if (data.status === "success") {
+                            resElem.innerHTML = `<span class="success">${data.detail}</span>`;
+                        } else {
+                            resElem.innerHTML = `<span class="error">${data.detail}</span>`;
+                        }
+                    }
 
-        const data = await response.json();
+                    async function updateLogs() {
+                        const response = await fetch("/logs");
+                        const data = await response.json();
 
-        if (data.status === "success") {
-            resElem.innerHTML = `<span class="success">${data.detail}</span>`;
-        } else {
-            resElem.innerHTML = `<span class="error">${data.detail}</span>`;
-        }
-    }
+                        const logDiv = document.getElementById("log");
+                        logDiv.innerHTML = data.logs.join("<br>");
+                        logDiv.scrollTop = logDiv.scrollHeight;
+                    }
 
-    async function updateLogs() {
-        const response = await fetch("/logs");
-        const data = await response.json();
+                    // Auto-refresh log every 1 second
+                    setInterval(updateLogs, 1000);
 
-        const logDiv = document.getElementById("log");
-        logDiv.innerHTML = data.logs.join("<br>");
-        logDiv.scrollTop = logDiv.scrollHeight;
-    }
+                    function loadErrors() {
 
-    // Auto-refresh log every 1 second
-    setInterval(updateLogs, 1000);
-</script>
+                        fetch("/api/errors")
+                            .then(r => r.json())
+                            .then(errors => {
 
-</body>
+                                const tbody =
+                                    document.querySelector("#errorTable tbody");
+
+                                tbody.innerHTML = "";
+
+                                errors.forEach(error => {
+
+                                    const row =
+                                        document.createElement("tr");
+
+                                    row.innerHTML =
+                                        `<td>${error.error}</td>
+                                         <td>${error.reason}</td>`;
+
+                                    tbody.appendChild(row);
+                                });
+                            });
+                    }
+
+                    loadErrors();
+                    setInterval(loadErrors, 5000);
+                </script>
+            </div>
+            <div class="right-panel">
+                <h2>Active Errors</h2>
+
+                <table id="errorTable">
+
+                    <colgroup>
+                        <col style="width:40%">
+                        <col style="width:60%">
+                    </colgroup>
+
+                    <thead>
+                        <tr>
+                            <th>Error</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                    </tbody>
+
+                </table>
+            </div>
+        </div>
+    </body>
 </html>
