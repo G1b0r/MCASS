@@ -734,6 +734,7 @@ class HASS:
                         ["DHT22", "Temperature", "Humidity", "°C", "%"],
                         ["BMP180", "Temperature", "Pressure", "°C", "Pa"],
                         ["BMP085", "Temperature", "Pressure", "°C", "Pa"],
+                        ["BME280", "Temperature", "Humidity", "Pressure", "°C", "%", "Pa"],
                         ["BH1750", "Light", "Lux"],
                         ["Rotary", "Rotation", "idkRotation"],
                         ["AnalogRead", "ADC", "adc"],
@@ -743,6 +744,7 @@ class HASS:
                          ["DHT22", "Temperature", "Humidity", "mdi:thermometer", "mdi:water-percent"],
                          ["BMP180", "Temperature", "Pressure", "mdi:thermometer", "mdi:cloud"],
                          ["BMP085", "Temperature", "Pressure", "mdi:thermometer", "mdi:cloud"],
+                         ["BME280", "Temperature", "Humidity", "Pressure", "mdi:thermometer", "mdi:water-percent", "mdi:cloud"],
                          ["BH1750", "Light", "mdi:ceiling-light"],
                          ["Rotary", "Rotation", "mdi:axis-z-rotate-counterclockwise"],
                          ["AnalogRead", "ADC", "mdi:leak"],
@@ -884,7 +886,7 @@ class HASS:
             for entity in entities:
                 if len(entity.split("@")) > 2:
                     try:
-                        if entity.split('@')[1].split('(')[1][:-1].upper() == "SENSOR":  # ha a domain sensor
+                        if entity.split('@')[1].split('(')[1][:-1].upper() == "SENSOR":  # ha a domain sensor #### NOT HANDLING IF NO ENTITY TYPE PROVIDED IN ()
                             if entity.split('@')[0].split("(")[0] in self.dualSensorSimple:  # ha 2 erteket mero sensor
                                 measurements = []
                                 for sensor in self.dualSensor:
@@ -1809,6 +1811,8 @@ class ProtocolBook:
         if len(messageTimeDiffs) != 0:
             if avgtimehelper / len(messageTimeDiffs) > 15:
                 lastMessageAvgTime = 15
+            elif avgtimehelper / len(messageTimeDiffs) < 5:
+                lastMessageAvgTime = 5
             else:
                 lastMessageAvgTime = avgtimehelper / len(messageTimeDiffs)
         else:
@@ -2154,12 +2158,18 @@ def runTimeLoop():
     global dailyRunAlready
     while True:  # loop
         if PROTOCOL_TIME_SHORT < time.time():  # protocol long
+            if PROTOCOL_TIME_SHORT + PROTOCOL_TIMEOUT_SHORT < time.time():
+                log.warning("Short protocol timer overexceeded by at least 2x")
             setpts()
             prot.protShort()
         if PROTOCOL_TIME < time.time():  # protocol
+            if PROTOCOL_TIME + PROTOCOL_TIMEOUT < time.time():
+                log.warning("Normal protocol timer overexceeded by at least 2x")
             setpt()
             prot.protNorm()
         if PROTOCOL_TIME_LONG < time.time():  # protocol long
+            if PROTOCOL_TIME_LONG + PROTOCOL_TIMEOUT_LONG < time.time():
+                log.warning("Long protocol timer overexceeded by at least 2x")
             setptl()
             prot.protLong()
         if datetime.datetime.now().hour == 5 and datetime.datetime.now().minute == 30:
