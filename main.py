@@ -27,14 +27,16 @@ TBCCONFLICTHANDLE = "error"  # options are "error"/"delete"
 webcontrol = True
 webloglevel = "INFO"
 
-activeErrors = [] #thing with error, reason for error
+activeErrors = []  # thing with error, reason for error
+
+
 def activeErrorHandler(error, reason, action):
     global activeErrors
-    print(activeErrors)
-    #print(error, reason, action)
+    # print(activeErrors)
+    # print(error, reason, action)
     if action == "add":
         for i in range(0, len(activeErrors)):
-            if error == activeErrors[i][0] and reason == activeErrors[i][1]: # ha már benne van ez az a kérdés
+            if error == activeErrors[i][0] and reason == activeErrors[i][1]:  # ha már benne van ez az a kérdés
                 return False
         activeErrors.append(f"{error}*{reason}".split("*"))
         return True
@@ -46,7 +48,7 @@ def activeErrorHandler(error, reason, action):
     else:
         log.error(f"Unkown action given in activeErrorHandler: {action}")
         return False
-    return False # ez azert kell h legyen visszajelzes akkor is ha a remove nem talalja az eltavolitando dolgot
+    return False  # ez azert kell h legyen visszajelzes akkor is ha a remove nem talalja az eltavolitando dolgot
 
 
 def setpts():
@@ -99,7 +101,10 @@ servercontroltopic = "MCASS/server/control"
 
 
 configtable = []
-deviceData = []  # runtime data for web control, # mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
+deviceData = []  # runtime data for web control, # mac, device_model, gateway, ip_addr, mask, last_avg_ping_time,
+powerMode_handler = []  # mac, running powermode, lastrequested powermode
+# powerMode(normal, powerSave, powerSave+)
+devicesWithUpdatedData = []  # currently only holds mac addresses for device of which a hardware info have been updated (board, hw, sw version info)
 
 HassAPIkey = ""
 HassIP = ""
@@ -153,7 +158,6 @@ class Logger3:
         file = open(f"{self.filepath}{self.filename}_console3.txt", "w")
         file.close()
         self.info("Started Logger3...")
-
 
     def updateWLL(self):
         global webloglevel
@@ -420,8 +424,21 @@ def loadConfigTable(): # megoldani hogy a rosszul formázottakat ne csak magána
                 if len(line.rstrip().split(",")) < 2:  # ha nincs vessző, szóval valami biztos hiányzik
                     log.error(f"Config invalid, not enough arguments in line {linecount}")
                 else:
-                    configtable.append(line.rstrip().split(','))
-                    deviceData.append(f"{line.rstrip().split(',')[0]}*n/a*n/a*n/a*n/a*n/a".split("*"))
+                    readLine = line.rstrip()
+                    if "@" in line.rstrip().split(',')[0]:
+                        if readLine.split(',')[0].split("@")[1].upper() not in ["NORMAL", "PWRSV", "PWRSVEX"]:
+                            log.warning(f"Invalid power saving mode defined in line {linecount} with argument {readLine.split(',')[0].split('@')[1].upper()}")
+                            readLine = readLine.replace(f"@{readLine.split(',')[0].split('@')[1]},", "@NORMAL,")
+
+                        powerMode_handler.append([readLine.split(',')[0].split("@")[0], "n/a", readLine.split(',')[0].split("@")[1].upper()])
+                        tobeaddedline = ",".join([readLine.split(',')[0].split("@")[0], readLine.split(',')[1], readLine.split(',')[2]])
+                        configtable.append(tobeaddedline.split(','))
+                        deviceData.append(f"{tobeaddedline.split(',')[0]}*n/a*n/a*n/a*n/a*n/a".split("*"))
+                    else:
+                        powerMode_handler.append([readLine.split(',')[0], "n/a", "NORMAL"])
+                        configtable.append(readLine.split(','))
+                        deviceData.append(f"{readLine.split(',')[0]}*n/a*n/a*n/a*n/a*n/a".split("*"))
+
                     if len(configtable[-1]) == 2:  # ha nincs megadva pincofnig set it to none
                         configtable[-1].append("None")
                     if len(configtable[-1][2]) == 0:  # ha van vessző de nincs irva semmi a pincofig reszhez set it to none
@@ -464,7 +481,7 @@ def loadConfigTable(): # megoldani hogy a rosszul formázottakat ne csak magána
                                     alreadyin = True
                             if alreadyin:  # old was if alreadyin == True de az True == True szoval igy egyzserubb
                                 log.error(f"Sensor with name {sensorname} already exist, removing from pinconfig")
-                                print(len(configtable[-1][2].split(f"/{sensor}")))
+                                #print(len(configtable[-1][2].split(f"/{sensor}")))
                                 if len(configtable[-1][2].split(f"/{sensor}")) > 2:
                                     templine = f'{configtable[-1][2].split(f"/{sensor}")[0]}/{sensor}{configtable[-1][2].split(f"/{sensor}")[1].replace(f"/{sensor}", "")}'
                                 elif len(configtable[-1][2].split(f"/{sensor}")) < 3:
@@ -657,7 +674,6 @@ class Ping2:
 log.info("Starting Ping2...")
 p = Ping2()
 
-
 class HASS:
 
     # discovery topic : homeassistant/domain(switch,sensor,stb)/id(mac?)/config
@@ -678,6 +694,8 @@ class HASS:
             return self.returnLightJSON(params[1], params[2], params[3], params[4], params[5], params[6])
         elif params[0] == "LIGHTRGB":
             return self.returnLightRGBJSON(params[1], params[2], params[3], params[4], params[5], params[6])
+        elif params[0] == "DUMMY": # param1 == mac
+            return(f'"platform":"binary_sensor","icon":"mdi:checkbox-blank-circle-outline","name":"MCASS {params[1]} Dummy","unique_id":"mcass_{params[1]}_dummy","entity_category":"diagnostic","enabled_by_default":"false","visible_by_default":"false"') #  jelen felhasznalashoz nem szukseges szoval ki lettek veve, de lehet ettol nem fog mukodni a discovery message     ---     ,"payload_on":"1","payload_off":"0","state_topic":"{state_topic}","availability":' + '{' + f'"topic":"{availability_topic}"' + '}')
 
     def returnPingSensorJson(selfself, name, unique_id, state_topic, unit_of_measurement, entity_category, icon, availability_topic):
         if icon == "ICON":
@@ -753,6 +771,13 @@ class HASS:
     dualSensor = []
     dualSensorSimple = []
 
+    pingPowerTimes = []
+    shortPings = []
+    midPings = []
+    midPingsCounter = 5
+    longPings = []
+    longPingsCounter = 10
+
     def __init__(self):
         log.info("HASS init started")
         for entry in self.defautlUOMByType:
@@ -776,6 +801,7 @@ class HASS:
                 self.entities.append(entry)
             else:
                 log.error(f"Unkown domain type given in hassImportData in the form of {entry}")
+        self.initpingPowerTimes()
         log.info("HASS init finished")
 
     def __del__(self):
@@ -1371,9 +1397,129 @@ class HASS:
 
     startedPings = []  # ID, unique id
 
+    def initpingPowerTimes(self):
+        global powerMode_handler
+        self.pingPowerTimes = [] #self.devices[][1].split('_')[1],self.devices[][2] (mac, hassimportdata 2(asszem entityID)), current power mode
+        for entry in powerMode_handler:
+            mac = ""
+            entity_id = ""
+            power_mode = ""
+            mac = entry[0]
+            power_mode = entry[1]
+            for device in self.devices:
+                if device[1].split('_')[1] == mac:
+                    entity_id = device[2]
+                    break
+
+            self.pingPowerTimes.append(f"{mac},{entity_id},{power_mode}".split(","))
+
+        for element in self.pingPowerTimes: #this has to change dinamycally on runtime with the change of runnig power modes, should be updated from updatepingPowerTimes
+            if element[2] == "PWRSVEX":
+                self.longPings.append(element)
+            elif element[2] == "PWRSV":
+                self.midPings.append(element)
+            else: #normal
+                self.shortPings.append(element)
+
+        print(self.shortPings, self.midPings, self.longPings)
+
+    def updatepingPowerTimes(self):  #update changes in powerMode_handler (currently running powersave mode) into self.pingPowerTimes
+        global powerMode_handler
+        #PMH#mac, running powermode, lastrequested powermode
+        #PPT#mac, entity id, current power mode
+        for PPTelement in self.pingPowerTimes:  # ezt is ujra kell dolgozni mert a 2 nested for loop kurvaa hpsszu lesz ah sok eszkoz lesz majd
+            for PMHelement in powerMode_handler:
+                if PPTelement[0] == PMHelement[0] and PPTelement[2] == PMHelement[1]:
+                    PPTelement[2] = PMHelement[1]
+
+        #update long ping list
+        for lpe in self.longPings: # remove
+            for PPTelement in self.pingPowerTimes:
+                if lpe[0] == PPTelement[0] and lpe[2] != "PWRSVEX":
+                    self.longPings.remove(lpe[2])
+        for PPTelement in self.pingPowerTimes:  # add
+            inlpe = False
+            if PPTelement[2] == "PWRSVEX":
+                for lpe in self.longPings:
+                    if lpe[0] == PPTelement[0]:
+                        inlpe = True
+                        break
+            if inlpe:
+                pass
+            else:
+                self.longPings.append(PPTelement)
+
+        #update mid ping list
+        for mpe in self.midPings: # remove
+            for PPTelement in self.pingPowerTimes:
+                if mpe[0] == PPTelement[0] and mpe[2] != "PWRSV":
+                    self.midPings.remove(mpe[2])
+        for PPTelement in self.pingPowerTimes:  # add
+            inmpe = False
+            if PPTelement[2] == "PWRSVEX":
+                for mpe in self.midPings:
+                    if mpe[0] == PPTelement[0]:
+                        inmpe = True
+                        break
+            if inmpe:
+                pass
+            else:
+                self.midPings.append(PPTelement)
+
+        #everything else goes into normal, and removed from normal if in any
+        for PPTelement in self.pingPowerTimes:
+            inmpe = False
+            inlpe = False
+            for lpe in self.longPings:
+                if lpe[0] == PPTelement[0]:
+                    inlpe = True
+                    for spe in self.shortPings:
+                        if spe[0] == lpe[0]: #lehet nem fog mukodni ha a masik listara referal es nem arra amibol hozza lett addva (eredeti)
+                            self.shortPings.remove(lpe)  #remove from shortping if in longping
+                            break
+                    break
+
+            for mpe in self.midPings:
+                if mpe[0] == PPTelement[0]:
+                    inmpe = True
+                    for spe in self.shortPings:
+                        if spe[0] == mpe[0]: #lehet nem fog mukodni ha a masik listara referal es nem arra amibol hozza lett addva (eredeti)
+                            self.shortPings.remove(mpe)  #remove from shortping if in midping
+                            break
+                    break
+
+            #add to shortping if not in any
+            if not inlpe and not inmpe:
+                self.shortPings.append(PPTelement)
+
     def checkAvailablity(self):
-        for device in self.devices:
-            self.startedPings.append(f"{p.pingstart(device[1].split('_')[1], 4)}*{device[2]}".split("*"))
+        #for device in self.devices:
+            #self.startedPings.append(f"{p.pingstart(device[1].split('_')[1], 4)}*{device[2]}".split("*"))
+
+        """
+        shortPings = []
+        midPings = []
+        longPings = []
+        """
+        for element in self.shortPings:
+            self.startedPings.append(f"{p.pingstart(element[0], 4)}*{element[1]}".split("*"))
+
+
+        if self.midPingsCounter < 5:
+            self.midPingsCounter += 1
+        else:
+            self.midPingsCounter = 0
+            for element in self.midPings:
+                self.startedPings.append(f"{p.pingstart(element[0], 4)}*{element[1]}".split("*"))
+
+        if self.longPingsCounter < 10:
+            self.longPingsCounter += 1
+        else:
+            self.longPingsCounter = 0
+            for element in self.longPings:
+                self.startedPings.append(f"{p.pingstart(element[0], 4)}*{element[1]}".split("*"))
+
+
 
     def getAvail(self):
         global activeErrors
@@ -1481,6 +1627,9 @@ class HASS:
         for device in self.devices:
             if mac == device[1].replace("MCASS_", ""):
                 return(device[3], device[4], device[5], device[6], device[7])
+
+    def removeToUpdateDevice(self, mac):
+        self.removeFromHass("binary_sensor", f"mcass_{mac}_dummy") #mcass_mac_dummy
 
 
 ha = ""
@@ -1832,7 +1981,44 @@ class ProtocolBook:
             selfTestHang = True
         #if no message within the last avg*2 sec
             #send selt test message
+        
+    def fillUpdatePowerModen(self, command):
+        global powerMode_handler
+        if command == "getID":
+            return "PWR1"
+        elif command == "getDesc":
+            return "Function to get current runnig power mode, and update if set and current differ"
+        for element in powerMode_handler:
+            dtopic = ""
+            if element[1] == "n/a":
+                for device in configtable:
+                    if device[0] == element[0]:
+                        dtopic = device[1]
+                if dtopic == "":
+                    log.error(f"Failed to find device topic for device with current powersaving mode on default value: device: {element[0]}")
+                else:
+                    client.publish(dtopic, "PRTCL_PWRSV_REPORT")
+            elif element[1] != element[2]:
+                for device in configtable:
+                    if device[0] == element[0]:
+                        dtopic = device[1]
+                if dtopic == "":
+                    log.error(f"Failed to find device topic for device with current powersaving mode on different value than set: device: {element[0]}")
+                else:
+                    client.publish(dtopic, f"PRTCL_PWRSV:{element[2]}")
 
+    def updateHardwareInfoIntoHassn(self, command):
+        global devicesWithUpdatedData
+        if command == "getID":
+            return "HA10"
+        elif command == "getDesc":
+            return "This function is to update information into HASS if a device got a hardware info update"
+        if len(devicesWithUpdatedData) != 0:
+            for element in devicesWithUpdatedData:
+                ha.removeToUpdateDevice(element)
+                devicesWithUpdatedData.remove(element)
+        else:
+            return
 
 log.info("Starting ProtocolBook...")
 prot = ProtocolBook()
@@ -1943,6 +2129,9 @@ def on_message(client, userData, msg):
         for i in range(0, len(configtable)):
             if msg.topic == configtable[i][1]:
                 log.info(f"Device {configtable[i][0]} succesfully connected to own channel")
+                for device in powerMode_handler:
+                    if device[0] == configtable[i][0]:
+                        device[1] = "n/a" # temporary fix for the esp32 powersaving test, (currently the esp frequently reconfigures from 0 so it sets itself back at PWRSV:NROMAL)
                 time.sleep(delayResponseWithSecond)
                 client.publish(configtable[i][1], "channel change ack")
 
@@ -1984,6 +2173,7 @@ def on_message(client, userData, msg):
             log.error(f'Unkown error level provided from {str(msg.topic)} with level {str(msg.payload).split(":")[0][-2:]}\nError message was: {str(msg.payload).split(":")[1][:-1]}')
 
     if "PRTCL_GIVEINFO_HW:" in str(msg.payload):
+        global devicesWithUpdatedData
         device = ""
         giveninfo = str(msg.payload).split(":", 1)[1][:-1]
         for entry in configtable:
@@ -1991,6 +2181,8 @@ def on_message(client, userData, msg):
                 device = entry[0]
         if device != "":
             ha.updateData(device, giveninfo)
+            devicesWithUpdatedData.append(device)
+
 
     if "PRTCL_GIVEINFO_RT:" in str(msg.payload):
         device = ""
@@ -2042,7 +2234,7 @@ def on_message(client, userData, msg):
                 if result is False:
                     result = log.inLastXConsole(150, f'PRTCL_VAL:{str(msg.payload).split(":")[1].split("@")[0]}', maxOccurance=2) # changed to 150 due to frequent not found messages
                 if result is False:
-                    log.info(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
+                    log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
                     sendOnlineAvail = True
                 # also maybe check if a set to unavailable happeneded beofre this és akkor is megcsinal ill forcevalue???
 
@@ -2137,6 +2329,29 @@ def on_message(client, userData, msg):
             if str(msg.payload).split(":")[1][:-1] == entities[1]:
                 client.publish(msg.topic, f"PRTCL_GIVECONTROLTOPIC:{entities[1]}@{entities[3]}")
 
+    if "PRTCL_PWRSV_STATE" in str(msg.payload):
+        dmac = ""
+        for element in configtable:
+            if msg.topic == element[1]:
+                dmac = element[0]
+                break
+        for device in powerMode_handler:
+            if device[0] == dmac:
+                device[1] = str(msg.payload).split(":")[1][:-1]
+                break
+
+    elif "PRTCL_PWRSV_MODE_UPDATED" in str(msg.payload):
+        dmac = ""
+        for element in configtable:
+            if msg.topic == element[1]:
+                dmac = element[0]
+                break
+        for device in powerMode_handler:
+            if device[0] == dmac:
+                device[1] = str(msg.payload).split(":")[1][:-1]
+                break
+
+
 
 def subscribe():
     client.subscribe(configreqtopic)
@@ -2150,12 +2365,19 @@ client.loop_start()
 
 dailyRunAlready = False
 isFinished = False
+isPingNeeded = False
+pingRunning = True
 
+def pingLoop():
+    while isPingNeeded:
+        p.ping_runtime()
 
 def runTimeLoop():
     log.info("Started runtime loop")
     global isFinished
     global dailyRunAlready
+    global isPingNeeded
+    global pingRunning
     while True:  # loop
         if PROTOCOL_TIME_SHORT < time.time():  # protocol long
             if PROTOCOL_TIME_SHORT + PROTOCOL_TIMEOUT_SHORT < time.time():
@@ -2183,13 +2405,26 @@ def runTimeLoop():
             isFinished = False
     # *****************************************************************************************************************************************************************************************************************
 
-        if True:  # new ping
-            p.ping_runtime()
+        #if True:  # new ping
+            #p.ping_runtime()
             # nem mennek a protocollok amig ping van mert a ping runtime egybe van a protocolhivasokkal
             # ami igy gatya mert a protocllok time alapuak
             # start thread for it then join it back once finished
             #kell egy valtozo h is ping thread started, mert ha igen ne csinaljon uj threadet amig megy az elozo
             #ill a ping is gatyasodik hogyha sokaig tart egy protocol (volt pl egy valid 11 seces pingtime a 2.5ös timeout mellett)
+
+        if isPingNeeded and not pingRunning:
+            pingRunning = True
+            pingThread = threading.Thread(target=pingLoop)
+        if not isPingNeeded and pingRunning:
+            pingThread.join()
+            pingRunning = False
+
+        if len(p.ping_tasks2) != 0:
+            isPingNeeded = True
+        else:
+            isPingNeeded = False
+
 
 
 
@@ -2398,6 +2633,71 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(encoded)
 
+        elif self.path == "/api/device_power_mode":
+            length = int(self.headers.get("Content-Length"))
+            body = self.rfile.read(length)
+            data = json.loads(body.decode("utf-8"))
+
+            mac = data.get("mac")
+            requested_mode = data.get("power_mode")
+
+            try:
+                if not mac:
+                    response = {
+                        "status": "error",
+                        "detail": "Missing MAC address"
+                    }
+
+                elif requested_mode is None:
+                    response = {
+                        "status": "error",
+                        "detail": "Missing power mode"
+                    }
+
+                else:
+                    power_entry = self.find_device_in_power_mode(mac)
+
+                    if not power_entry:
+                        response = {
+                            "status": "error",
+                            "detail": "Device power mode data not found"
+                        }
+
+                    else:
+                        # Update only the LAST REQUESTED power mode.
+                        power_entry[2] = requested_mode
+
+                        add_log(
+                            f"Power mode for {mac} requested to change to {requested_mode}",
+                            "info"
+                        )
+
+                        log.info(
+                            f"Power mode request for {mac}: {requested_mode}"
+                        )
+
+                        response = {
+                            "status": "success",
+                            "detail": "Power mode request updated",
+                            "running_power_mode": power_entry[1],
+                            "requested_power_mode": power_entry[2]
+                        }
+
+            except Exception as e:
+                add_log(f"Error: {str(e)}", "error")
+
+                response = {
+                    "status": "error",
+                    "detail": str(e)
+                }
+
+            encoded = json.dumps(response).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
 
         else:
             self.send_error(404)
@@ -2488,6 +2788,7 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             cfg = self.find_device_in_config(mac)
             runtime = self.find_device_in_runtime(mac)
+            powermode = self.find_device_in_power_mode(mac)
             hwsw = self.find_device_hwsw(mac)
 
             if not cfg:
@@ -2498,19 +2799,31 @@ class MyHandler(SimpleHTTPRequestHandler):
                 "mac": cfg[0],
                 "topic": cfg[1],
                 "pinconfig": cfg[2],
-                "_":"",
-                # runtime data (may be missing)  # mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
+
+                "_": "",
+
+                # Runtime data
+                # mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
                 "device_model": runtime[1] if runtime else "unknown",
                 "ip_addr": runtime[3] if runtime else None,
                 "gateway": runtime[2] if runtime else None,
                 "mask": runtime[4] if runtime else None,
                 "last_avg_ping_time": runtime[5] if runtime else None,
-                "-":"",
-                #hardware, software info
-                "Manufacturer": hwsw[3],
-                "Model": hwsw[4],
-                "Hardware version": hwsw[5],
-                "Software version": hwsw[6],
+
+                "-": "",
+
+                # Power saving
+                # mac, running powermode, lastrequested powermode
+                "running_power_mode": powermode[1] if powermode else None,
+                "requested_power_mode": powermode[2] if powermode else None,
+
+                "--": "",
+
+                # Hardware / software info
+                "Manufacturer": hwsw[3] if hwsw else None,
+                "Model": hwsw[4] if hwsw else None,
+                "Hardware version": hwsw[5] if hwsw else None,
+                "Software version": hwsw[6] if hwsw else None,
             }
 
             encoded = json.dumps(data).encode("utf-8")
@@ -2620,61 +2933,440 @@ class MyHandler(SimpleHTTPRequestHandler):
         <html>
         <head>
             <title>Device {mac}</title>
+    
+            <style>
+    
+                body {{
+                    font-family: Arial;
+                    margin: 40px;
+                }}
+    
+                .info-table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    max-width: 900px;
+                    margin-bottom: 25px;
+                }}
+    
+                .info-table th,
+                .info-table td {{
+                    border: 1px solid #aaa;
+                    padding: 10px;
+                    text-align: left;
+                }}
+    
+                .info-table th {{
+                    background: #ddd;
+                    width: 30%;
+                }}
+    
+                .power-mode-box {{
+                    border: 1px solid #aaa;
+                    padding: 15px;
+                    margin-top: 20px;
+                    max-width: 900px;
+                }}
+    
+                .power-mode-box h3 {{
+                    margin-top: 0;
+                }}
+    
+                .power-mode-row {{
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    margin: 10px 0;
+                }}
+    
+                .power-mode-label {{
+                    width: 180px;
+                    font-weight: bold;
+                }}
+    
+                select {{
+                    padding: 8px;
+                    font-size: 16px;
+                }}
+    
+                button {{
+                    padding: 10px 20px;
+                    margin: 6px;
+                    font-size: 16px;
+                    cursor: pointer;
+                }}
+    
+                #powerModeResult {{
+                    margin-top: 10px;
+                    font-weight: bold;
+                }}
+    
+                .success {{
+                    color: green;
+                }}
+    
+                .error {{
+                    color: red;
+                }}
+    
+            </style>
+    
         </head>
+    
         <body>
+    
             <h2>Device: {mac}</h2>
     
-            <pre id="info">Loading...</pre>
+            <table class="info-table">
+    
+                <tr>
+                    <th>MAC</th>
+                    <td id="mac">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Device Model</th>
+                    <td id="device_model">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>IP Address</th>
+                    <td id="ip_addr">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Gateway</th>
+                    <td id="gateway">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Mask</th>
+                    <td id="mask">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Last Average Ping</th>
+                    <td id="last_avg_ping_time">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Running Power Mode</th>
+                    <td id="running_power_mode">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Requested Power Mode</th>
+                    <td id="requested_power_mode">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Manufacturer</th>
+                    <td id="Manufacturer">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Model</th>
+                    <td id="Model">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Hardware Version</th>
+                    <td id="Hardware_version">Loading...</td>
+                </tr>
+    
+                <tr>
+                    <th>Software Version</th>
+                    <td id="Software_version">Loading...</td>
+                </tr>
+    
+            </table>
+    
+    
+            <div class="power-mode-box">
+    
+                <h3>Power Saving Mode</h3>
+    
+                <div class="power-mode-row">
+    
+                    <div class="power-mode-label">
+                        Running mode:
+                    </div>
+    
+                    <div id="powerModeRunning">
+                        Loading...
+                    </div>
+    
+                </div>
+    
+    
+                <div class="power-mode-row">
+    
+                    <div class="power-mode-label">
+                        Requested mode:
+                    </div>
+    
+                    <select id="powerModeSelect">
+    
+                        <!--
+                        Replace these values with the exact power mode
+                        strings used by your powerMode_handler.
+                        -->
+    
+                        <option value="NORMAL">Normal</option>
+                        <option value="PWRSV">Power Save</option>
+                        <option value="PWRSVEX">Power Save Extreme</option>
+    
+                    </select>
+    
+                    <button onclick="setPowerMode()">
+                        Change Power Mode
+                    </button>
+    
+                </div>
+    
+                <div id="powerModeResult"></div>
+    
+            </div>
+    
     
             <h3>Commands</h3>
-            <button onclick="sendCommand('ping')">Ping</button>
-            <button onclick="sendCommand('force_values')">Force Values</button>
-            <button onclick="sendCommand('reload_pinconfig')">Reload pinconfig</button>
-            <button onclick="sendCommand('restart')">Restart</button>
-
+    
+            <button onclick="sendCommand('ping')">
+                Ping
+            </button>
+    
+            <button onclick="sendCommand('force_values')">
+                Force Values
+            </button>
+    
+            <button onclick="sendCommand('reload_pinconfig')">
+                Reload pinconfig
+            </button>
+    
+            <button onclick="sendCommand('restart')">
+                Restart
+            </button>
+    
     
             <br><br>
-            <button onclick="location.href='/devices'">Back</button>
     
-        <script>
-        fetch("/api/device/{mac}")
-            .then(r => r.json())
-            .then(d => {{
-                document.getElementById("info").textContent =
-                    JSON.stringify(d, null, 2);
-            }})
-            .catch(e => {{
-                document.getElementById("info").textContent =
-                    "Failed to load device data";
-            }});
-        
-        function sendCommand(cmd) {{
-            fetch("/api/device_command", {{
-                method: "POST",
-                headers: {{ "Content-Type": "application/json" }},
-                body: JSON.stringify({{
-                    command: cmd,
-                    mac: "{mac}"
-                }})
-            }})
-            .then(r => r.json())
-            .then(d => {{
-                if (d.status === "success")
-                    alert("Command sent successfully");
-                else
-                    alert(d.detail);
-            }});
-        }}
-        </script>
-
+            <button onclick="location.href='/devices'">
+                Back
+            </button>
+    
+    
+            <script>
+    
+            let currentDeviceData = null;
+    
+    
+            async function loadDeviceData() {{
+    
+                try {{
+    
+                    const response =
+                        await fetch("/api/device/{mac}");
+    
+                    if (!response.ok)
+                        throw new Error("Failed to load device data");
+    
+                    const d = await response.json();
+    
+                    currentDeviceData = d;
+    
+    
+                    document.getElementById("mac").textContent =
+                        d.mac ?? "N/A";
+    
+                    document.getElementById("device_model").textContent =
+                        d.device_model ?? "N/A";
+    
+                    document.getElementById("ip_addr").textContent =
+                        d.ip_addr ?? "N/A";
+    
+                    document.getElementById("gateway").textContent =
+                        d.gateway ?? "N/A";
+    
+                    document.getElementById("mask").textContent =
+                        d.mask ?? "N/A";
+    
+                    document.getElementById("last_avg_ping_time").textContent =
+                        d.last_avg_ping_time ?? "N/A";
+    
+    
+                    document.getElementById("running_power_mode").textContent =
+                        d.running_power_mode ?? "N/A";
+    
+                    document.getElementById("requested_power_mode").textContent =
+                        d.requested_power_mode ?? "N/A";
+    
+    
+                    document.getElementById("powerModeRunning").textContent =
+                        d.running_power_mode ?? "N/A";
+    
+    
+                    document.getElementById("Manufacturer").textContent =
+                        d.Manufacturer ?? "N/A";
+    
+                    document.getElementById("Model").textContent =
+                        d.Model ?? "N/A";
+    
+                    document.getElementById("Hardware_version").textContent =
+                        d["Hardware version"] ?? "N/A";
+    
+                    document.getElementById("Software_version").textContent =
+                        d["Software version"] ?? "N/A";
+    
+    
+                    // Set dropdown to the currently requested mode.
+                    if (d.requested_power_mode !== null &&
+                        d.requested_power_mode !== undefined) {{
+    
+                        const select =
+                            document.getElementById("powerModeSelect");
+    
+                        const optionExists =
+                            [...select.options].some(
+                                option => option.value === d.requested_power_mode
+                            );
+    
+                        if (optionExists) {{
+                            select.value = d.requested_power_mode;
+                        }}
+                    }}
+    
+                }}
+                catch (e) {{
+    
+                    console.error(e);
+    
+                    document.getElementById("powerModeResult").textContent =
+                        "Failed to load device data";
+    
+                    document.getElementById("powerModeResult").className =
+                        "error";
+                }}
+            }}
+    
+    
+            async function setPowerMode() {{
+    
+                const mode =
+                    document.getElementById("powerModeSelect").value;
+    
+                const result =
+                    document.getElementById("powerModeResult");
+    
+                result.textContent = "Updating...";
+                result.className = "";
+    
+    
+                try {{
+    
+                    const response = await fetch(
+                        "/api/device_power_mode",
+                        {{
+                            method: "POST",
+                            headers: {{
+                                "Content-Type": "application/json"
+                            }},
+                            body: JSON.stringify({{
+                                mac: "{mac}",
+                                power_mode: mode
+                            }})
+                        }}
+                    );
+    
+    
+                    const data = await response.json();
+    
+    
+                    if (data.status === "success") {{
+    
+                        result.textContent =
+                            "Requested power mode changed to " +
+                            data.requested_power_mode;
+    
+                        result.className = "success";
+    
+    
+                        // Update displayed values immediately.
+                        document.getElementById(
+                            "requested_power_mode"
+                        ).textContent =
+                            data.requested_power_mode;
+    
+                    }}
+                    else {{
+    
+                        result.textContent =
+                            data.detail || "Failed to update power mode";
+    
+                        result.className = "error";
+                    }}
+    
+                }}
+                catch (e) {{
+    
+                    console.error(e);
+    
+                    result.textContent =
+                        "Failed to update power mode";
+    
+                    result.className = "error";
+                }}
+            }}
+    
+    
+            async function sendCommand(cmd) {{
+    
+                try {{
+    
+                    const response = await fetch(
+                        "/api/device_command",
+                        {{
+                            method: "POST",
+                            headers: {{
+                                "Content-Type": "application/json"
+                            }},
+                            body: JSON.stringify({{
+                                command: cmd,
+                                mac: "{mac}"
+                            }})
+                        }}
+                    );
+    
+    
+                    const d = await response.json();
+    
+    
+                    if (d.status === "success")
+                        alert("Command sent successfully");
+                    else
+                        alert(d.detail);
+    
+                }}
+                catch (e) {{
+    
+                    alert("Failed to send command");
+    
+                }}
+            }}
+    
+    
+            loadDeviceData();
+    
+            </script>
+    
         </body>
         </html>
         """
 
+        encoded = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
-        self.wfile.write(html.encode())
+        self.wfile.write(encoded)
 
     def serve_errors_api(self):
         global activeErrors
@@ -2731,6 +3423,9 @@ class MyHandler(SimpleHTTPRequestHandler):
 
     def find_device_hwsw(self, mac):
         return next((d for d in ha.devices if d[1].split("_")[1] == mac.upper()), None)
+
+    def find_device_in_power_mode(self, mac):
+        return next((d for d in powerMode_handler if d[0] == mac), None)
     def serve_protocol_api(self):
 
         protocols = []
@@ -3098,20 +3793,22 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 #ellenorzest adni neki h minden parameter megvan e az adressable rgb ledeknek
 #ha kezdo ledszam nincs megadva csak egy szám a végé (ketto helyett), akkor 0tol indul es megadott szam a hossz
 
-
-            # nem mennek a protocollok amig ping van mert a ping runtime egybe van a protocolhivasokkal
-            # ami igy gatya mert a protocllok time alapuak
-            # start thread for it then join it back once finished
-            #kell egy valtozo h is ping thread started, mert ha igen ne csinaljon uj threadet amig megy az elozo
-            # 1820-as sor kornykee
+### --- ELV DONE ELL ---
+# nem mennek a protocollok amig ping van mert a ping runtime egybe van a protocolhivasokkal
+# ami igy gatya mert a protocllok time alapuak
+# start thread for it then join it back once finished
+#kell egy valtozo h is ping thread started, mert ha igen ne csinaljon uj threadet amig megy az elozo
+# 1820-as sor kornykee
+### --- ELV DONE ELL ---
 
 #még meg kell csinálni a synctohasst rendesen hogy az updatelt datat frissitse hassba is be
 #---Azt ugy kene lehet megcsinálni hogy törli egyik saját diagnostikai entityjet (ami még nem létezik), a snyctohass protocol meg bekuldi ujra, (lehet esetleg direktbe hivni egy dataupdate utan), és felülirj a magavla vitt device dataval
+### ---ELV DONE TESZTELNI---
 
 #ill azt is meg kene csinalni h hogy ha egy entityt kiveszunk hardwerbol akkor az hassbol is jojjon ki jelenleg ez sincs megcsinalva
 #!!!!! a pinget ugy kene kotni hozza h a dataline.ssplit(",")[2] szal a unique id eleje ("_Ping") nelkuli resz ha benne van (es csak az semmi mas egyeb kiegeszites utana(_Lamp pl) akk hagyja bent, de ha nincs vegye ki
 #ugyanigy kene lehet megcsinalni a tobbi entity kivetelet is
-#---ELV DONE ELL-----
+#---DONE-----
 
 #logs in the web on device basis, where the logs from the given devices are visible (switching a protocol to off/short stb)
 # Individual protocol control like for server but n device basis????
@@ -3126,7 +3823,8 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 #valami stat page h mi az actual running config a serveren
 #mer menet kozben le lett veve a wll infora warningrol de a protocol freqchange infok nem jonnek at rajta (reload configtablebol is csak anniy jott ki amit a webes rész kezel)
 
-#ujrainditasonkent (hass ujraind) mindig levágja this entity is no longer provided by mqtt intergration- statebe (ujraaddolás után megy tovabb es megmarad a history is)
+#ujrainditasonkent (hass ujraind) mindig levágja this entity is no longer provided by mqtt intergration- statebe (ujraaddolás után megy tovabb es megmarad a history is) ---DONE
+#----DONE---
 
 #change the way we reload the configtable
 #first load in all the data, then replace the currently used list
@@ -3137,3 +3835,29 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 #automatically send a reload pinconfig when relevant parts of config changed (Dont yet know how to implement in a good way)
 
 #qol upgrade idea: only send error for device av check failed if not in activerror (vagy ha az aktiverrorhoz berakas returnje true lett)
+
+
+######################----DONE----#################
+#powerMode(normal, powerSave, powerSave+)
+#handle powermode negotiation on both server and client side
+#normal is current
+# powersave is light powersaving, new protocol times: short:.5s-->15s, normal5s-->2.5m, long1m-->30m, pings every 5m instead of 1m (light rf powersaving for wifi)
+# powersave+ is extreme powersaving, new protocol times:  short:.5s-->1m, normal5s-->5m, long1m-->60m, pings every 10m instead of 1m (heavy rf powersaveing for wifi)
+#PRTCL_PWRSV:NORMAL, PRTCL_PWRSV:PWRSV and PRTCL_PWRSV:PWRSVEX
+#
+#SOMEHOW HAVE TO SOLVE SO THAT CONFIG RELATED PROTOCOLS DONT GET UPDATED TO THESE NEW TIMES (configproto, validateproto és a tobbi maradjon a regi timeren)
+######################----DONE----#################
+
+
+#send updates if last assigned and current are not the same  ---DONE
+#update current from onmessage ---DONE
+#display current mode on webpage under device like hw/sw data ---DONE
+#add button or dropdown menu to change powersaving mode from webpage ---DONE
+#ping retimeokat megcsinalni az eszkozokhoz ----DONE
+
+
+#add newly added features from esp code to rp code (pl feldolgozatlan/ismeretlen uzenetekre reagalas)
+# SADLY NOT VIABLE IN CURRENT MESSAGING FORMAT (jelenleg egy csatornan megy odavissza az uzenet, igy a not processed message is egy not processed message ezert egy infite loop az egesz szoval majd ha kulon lenne a kuldes meg fogadas akkor megoldhato lenne jol is
+
+#run each (short/norm/long) protocol in seperate thread and then join back such in the case of daily prot
+#(viszonlyag sokszor jon ki a short protocl timer overexceeded at least 2x)
