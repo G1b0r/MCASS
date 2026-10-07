@@ -139,6 +139,11 @@ class Logger3:
         print("logs folder does not exist, creating...")
         os.makedirs(filepath[:-1])
 
+    logCache = []
+    logMaxKeep = 25
+    consoleCache = []
+    consoleMaxKeep = 50
+
     def __init__(self):
         global L3timeoutforwarning
         global L3error_max_rep_within
@@ -184,21 +189,31 @@ class Logger3:
             else:
                 return
 
+    def putToLogFile(self, text):
+        with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
+            file.write(text)
+        self.logCache.append(text)
+        while len(self.logCache) > self.logMaxKeep:
+            del self.logCache[0]
+    def putToConsoleFile(self, text):
+        with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
+            file.write(text)
+        self.consoleCache.append(text)
+        while len(self.consoleCache) > self.consoleMaxKeep:
+            del self.consoleCache[0]
     def console(self, info):  # print to console only
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
-            file.write(f"\n[Console] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
+
 
     def info(self, info):
         self.forwardToWeb(info, "info")
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
-        with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
-            file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
-        with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
-            file.write(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
+        self.putToLogFile(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
+        self.putToConsoleFile(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
+
 
     def warning(self, info):
         # ---- LOGIC TO NOT SEND MULTIPLES WITHIN TIME ---- #
@@ -217,11 +232,9 @@ class Logger3:
         if isalreadyin is False:
             self.forwardToWeb(info, "warning")
             print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-            with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
-                file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
+            self.putToLogFile(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
             self.timeoutlist.append(f"{datetime.datetime.now() + datetime.timedelta(minutes=self.timeoutforwarning)}*[Warning]: {info} FROM {wherefrom}".split("*"))
-            with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
-                file.write(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
+            self.putToConsoleFile(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
 
     def error(self, info):
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -239,35 +252,56 @@ class Logger3:
         if count < self.error_max_rep + 1:
             self.forwardToWeb(info, "error")
             print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
-            with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
-                file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
-            with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
-                file.write(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
+            self.putToLogFile(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
+            self.putToConsoleFile(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
 
     def inLastX(self, x, text, returnNumber = False, maxOccurance = 2):
-        lastlines = []
-        with open(f"{self.filepath}{self.filename}_log3.txt", encoding='UTF-8') as file:
-            for line in (file.readlines()[-x:]):
-                lastlines.append(line)
-        for i in range(0, len(lastlines)):
-            if text in lastlines[i]:
-                if returnNumber:
-                    return i
-                else:
-                    return True
+        if x > self.logMaxKeep:
+            self.logMaxKeep = x
+        occurance = 0
+#        lastlines = []
+#        with open(f"{self.filepath}{self.filename}_log3.txt", encoding='UTF-8') as file:
+#            for line in (file.readlines()[-x:]):
+#                lastlines.append(line)
+#        for i in range(0, len(lastlines)):
+#            if text in lastlines[i]:
+#                if returnNumber:
+#                    return i
+#                else:
+#                    return True
+
+        for i in range(0, len(self.logCache)):
+            if text in self.logCache[i]:
+                occurance += 1
+                if occurance >= maxOccurance:
+                    if returnNumber:
+                        return i
+                    else:
+                        return True
         #for line in lastlines:
             #if text in line:
                 #return True
         return False
 
     def inLastXConsole(self, x, text, returnNumber = False, maxOccurance = 1):
-        lastlines = []
+        if x > self.consoleMaxKeep:
+            self.consoleMaxKeep = x
+#        lastlines = []
         occurance = 0
-        with open(f"{self.filepath}{self.filename}_console3.txt", encoding='UTF-8') as file:
-            for line in (file.readlines()[-x:]):
-                lastlines.append(line)
-        for i in range(0, len(lastlines)):
-            if text in lastlines[i]:
+#        with open(f"{self.filepath}{self.filename}_console3.txt", encoding='UTF-8') as file:
+#            for line in (file.readlines()[-x:]):
+#                lastlines.append(line)
+#        for i in range(0, len(lastlines)):
+#            if text in lastlines[i]:
+#                occurance += 1
+#                if occurance >= maxOccurance:
+#                    if returnNumber:
+#                        return i
+#                    else:
+#                        return True
+
+        for i in range(0, len(self.consoleCache)):
+            if text in self.consoleCache[i]:
                 occurance += 1
                 if occurance >= maxOccurance:
                     if returnNumber:
@@ -670,6 +704,9 @@ class Ping2:
                 return entry[1]
         return None
 
+    def returnLenghtpt2(self):
+        return len(self.ping_tasks2)
+
 
 log.info("Starting Ping2...")
 p = Ping2()
@@ -830,7 +867,7 @@ class HASS:
             else:
                 log.error(f"Unkown domain type given in hassImportData in the form of {entry}")
 
-    def kiirALL(self):
+    def kiirALL(self):  # MOSTLY DEPRECATED (not used)
         file = open("hassImportData.txt", "w", encoding='UTF-8')
         file.close()
         for i in range(0, len(configtable)):
@@ -891,6 +928,7 @@ class HASS:
                     continue
 
     def kiirOnlyNew(self):
+        needReload = False
         loadedDataUNIQUEs = []
         for row in self.loadedData:
             loadedDataUNIQUEs.append(row[2])
@@ -904,11 +942,13 @@ class HASS:
             else:
                 with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
                     dfile.write(dataLine)
+                    needReload = True
             if f"{dataLine.split(',')[2].replace('mcass', 'mcass_')}_Ping" in loadedDataUNIQUEs:
                 print("")
             else:
                 with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
                     dfile.write(f"SENSOR,Ping,mcass_{mac.lower()}_Ping,MCASS/hass/{mac.upper().replace('-', '_')}/Ping,ms,Diagnostic,mdi:lan,mcass/hass/{mac.upper().replace('-', '_')}/Ping/available\n")
+                    needReload = True
             for entity in entities:
                 if len(entity.split("@")) > 2:
                     try:
@@ -927,6 +967,7 @@ class HASS:
                                     else:
                                         with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
                                             dfile.write(dataLine)
+                                            needReload = True
                             else:  # ha simpla sensor
                                 try:
                                     dataLine = f"{entity.split('@')[1].split('(')[1][:-1].upper()},{entity.split('@')[1].split('(')[0]},mcass_{mac.lower()}_{entity.split('@')[1].split('(')[0]},MCASS/hass/{mac.upper().replace('-', '_')}/{entity.split('@')[1].split('(')[0]},UNIT_OF_MEASUREMENT,ENTITY_CATEGORY,ICON,mcass/hass/{mac.upper().replace('-', '_')}/{entity.split('@')[1].split('(')[0]}/available\n"
@@ -937,6 +978,7 @@ class HASS:
                                 else:
                                     with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
                                         dfile.write(dataLine)
+                                        needReload = True
                         else:  # ha nem sensor a domain
                             try:
                                 dataLine = f"{entity.split('@')[1].split('(')[1][:-1].upper()},{entity.split('@')[1].split('(')[0]},mcass_{mac.lower()}_{entity.split('@')[1].split('(')[0]},MCASS/hass/{mac.upper().replace('-', '_')}/{entity.split('@')[1].split('(')[0]},ENTITY_CATEGORY,ICON,mcass/hass/{mac.upper().replace('-', '_')}/{entity.split('@')[1].split('(')[0]}/available\n"
@@ -947,6 +989,7 @@ class HASS:
                             else:
                                 with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
                                     dfile.write(dataLine)
+                                    needReload = True
                     except:
                         if entity.split('@')[0] in self.dualSensorSimple:  # ha 2 erteket mero sensor akkor nem kell domain mert fix h sensor
                             measurements = []
@@ -962,6 +1005,7 @@ class HASS:
                                 else:
                                     with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
                                         dfile.write(dataLine)
+                                        needReload = True
                         else:  # ha nincs domain megadva es nem is 2 erteku sensor
                             dataLine = f"ENTITY,{entity.split('@')[1]},mcass_{mac.lower()}_{entity.split('@')[1]},MCASS/hass/{mac.upper().replace('-', '_')}/{entity.split('@')[1]},ENTITY_CATEGORY,ICON,mcass/hass/{mac.upper().replace('-', '_')}/{entity.split('@')[1]}/available\n"
                             if dataLine.split(",")[2] in loadedDataUNIQUEs:
@@ -969,11 +1013,14 @@ class HASS:
                             else:
                                 with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
                                     dfile.write(dataLine)
+                                    needReload = True
                 else:
                     continue
-        self.reloadData()
+        if needReload:
+            self.reloadData()
 
     def removeRemoved(self):
+        needReload = False
         inHassImport = []
         with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
             log.console("Reading hassImportData file in removeRemoved")
@@ -984,7 +1031,7 @@ class HASS:
                 inHassImport.append(line.rstrip().split(","))
 # itt a lejjebbi for loopokat ha megcsinalod while-al, akkor minden kijön aminek ki kell első körben nem csak többen
 # lényeg h meg kell csinlani h legalabb a "for element in inHassImport" resz while-al menjen
-        for element in inHassImport: #for complete device removals
+        for element in inHassImport:  # for complete device removals
             inconfigtable = False
             for entry in configtable:
                 if element[0] == "DEVICE":
@@ -993,7 +1040,7 @@ class HASS:
                 else:
                     if element[3].split("/")[2].replace("_", "-") == entry[0]:
                         inconfigtable = True
-            if inconfigtable is False: #remove everything with this mac from hassimportdata
+            if inconfigtable is False:  # remove everything with this mac from hassimportdata
                 for item in inHassImport:
                     if element[0] == "DEVICE":
                         if element[1].split("_")[1] in item[1]:
@@ -1001,8 +1048,9 @@ class HASS:
                     else:
                         if element[3].split("/")[2] in item[3]:
                             inHassImport.remove(item)
+                needReload = True
 
-        for element in inHassImport: #for individual entity removals
+        for element in inHassImport:  # for individual entity removals
             inconfigtable = False
             for entry in configtable:
                 if element[0] == "DEVICE":
@@ -1020,24 +1068,26 @@ class HASS:
                                 if element[3].split("/")[3] == entity.split("@")[1]:
                                     inconfigtable = True
             if inconfigtable is False:
-                #remove item form hassimportdata
-                #print("remove", element)
+                # remove item form hassimportdata
+                # print("remove", element)
                 inHassImport.remove(element)
+                needReload = True
 
-        #for entry in inHassImport:
-            #print(entry)
+        # for entry in inHassImport:
+            # print(entry)
 
         file = open("hassImportData.txt", "w", encoding='UTF-8')
         file.close()
         with open("hassImportData.txt", "a+", encoding='UTF-8') as dfile:
             for line in inHassImport:
-                if line[0] == "DEVICE" or line[0] == "SENSOR": #csak ez a 2 dolog 8 elemes a tobbi csak 7
+                if line[0] == "DEVICE" or line[0] == "SENSOR":  # csak ez a 2 dolog 8 elemes a tobbi csak 7
                     linetowrite = f"{line[0]},{line[1]},{line[2]},{line[3]},{line[4]},{line[5]},{line[6]},{line[7]}"
                 else:
                     linetowrite = f"{line[0]},{line[1]},{line[2]},{line[3]},{line[4]},{line[5]},{line[6]}"
                 dfile.write(linetowrite)
                 dfile.write("\n")
-        self.reloadData()
+        if needReload:
+            self.reloadData()
 
     def sendToHassIndex(self, index):
         entity = self.entities[index]
@@ -1060,7 +1110,7 @@ class HASS:
             except:
                 pubTopic = f"homeassistant/{entity[1].lower()}/{entity[3].replace('/hass', '').replace('/', '_').lower()}/config"
                 log.warning(f"No domain defined for entity {entity[1]}")
-                #ezt a fenti 3 sort nem vágom mi a gyász
+                # ezt a fenti 3 sort nem vágom mi a gyász
         send = True
         for element in self.nonDefinedVars:
             if element in pubPayload:
@@ -1069,11 +1119,10 @@ class HASS:
         if send:
             client.publish(pubTopic, pubPayload)
 
-    def removeFromHass(self, domain, name): #MCASS/hass/RP2040ETH_1/LightSensor
-        #mcass_3c_ab_72_96_52_f4_lightsensor
-        #MCASS/hass/3C_AB_72_96_52_F4/Ping
+    def removeFromHass(self, domain, name):  # MCASS/hass/RP2040ETH_1/LightSensor
+        # mcass_3c_ab_72_96_52_f4_lightsensor
+        # MCASS/hass/3C_AB_72_96_52_F4/Ping
         client.publish(f"homeassistant/{domain}/{name}/config", "{}")
-
 
 
     def syncToHass(self):
@@ -1142,7 +1191,7 @@ class HASS:
             for j in range(0, len(inhass)):
                 inhassShort.append(str(inhass[j]).split('entity_id":"')[1].split(",")[0][:-1].split(".")[1])
             ToBeRemovedFromHass = inhassShort.copy()  # currently there's no reliable way to check if a device exist in hass, since the API does not return unique id, only entity_id, which is created by "<device_name>_<entity_name>", because of this currently we are going by entity id
-            #print("yolo3\n", ToBeRemovedFromHass, "\n", inhassShort)  #DO NOT REMOVE THIS. EVEN COMMENTED IT SOLVED AND ERROR WHICH IM NOW UNABLE TO REPLICATE AFTER ADDING THIS LINE
+            # print("yolo3\n", ToBeRemovedFromHass, "\n", inhassShort)  #DO NOT REMOVE THIS. EVEN COMMENTED IT SOLVED AND ERROR WHICH IM NOW UNABLE TO REPLICATE AFTER ADDING THIS LINE
             for i in range(0, len(self.entities)):
                 if str(f'{"_".join(self.entities[i][2].split("_", 2)[:2])}_{self.entities[i][1].split("(")[0].lower()}'.replace("-", "_")) in inhassShort:
                     ToBeRemovedFromHass.remove(str(f'{"_".join(self.entities[i][2].split("_", 2)[:2])}_{self.entities[i][1].split("(")[0].lower()}'.replace("-", "_")))
@@ -1270,7 +1319,7 @@ class HASS:
             for entry in tempHold:
                 if entry.split(",")[0] == "DEVICE":
                     if entry.split(",")[1].split("_")[1].upper() == device.upper():
-                        #newlist.append(entry.replace("MANUFACTURER", MANUFACTURER).replace("MODEL", MODEL).replace("HW_VERSION", HW_VERSION).replace("SW_VERSION", SW_VERSION).replace("CONFIGURL", CONFIGURL))
+                        # newlist.append(entry.replace("MANUFACTURER", MANUFACTURER).replace("MODEL", MODEL).replace("HW_VERSION", HW_VERSION).replace("SW_VERSION", SW_VERSION).replace("CONFIGURL", CONFIGURL))
                         helpline = ""
                         helplist = entry.split(",")
                         if MANUFACTURER != "MANUFACTURER":
@@ -1504,7 +1553,6 @@ class HASS:
         for element in self.shortPings:
             self.startedPings.append(f"{p.pingstart(element[0], 4)}*{element[1]}".split("*"))
 
-
         if self.midPingsCounter < 5:
             self.midPingsCounter += 1
         else:
@@ -1536,7 +1584,7 @@ class HASS:
                     if activeErrorHandler(f"{deviceMacHelp} offline", "Device did not respond to ping request", "add"):
                         log.info(f'Device {deviceMacHelp} added to activeErrors list with reason:"Device offline", added by HASS:getAvail')
                     #activeErrors.append(f"{deviceMacHelp}*offline".split("*"))
-                    log.error(f"Availability check failed for device {entry[1]}")  # get the avail topic for it and send unavaible message
+                        log.error(f"Availability check failed for device {entry[1]}")  # get the avail topic for it and send unavaible message
                 elif result == "Successful":
                     #inlastAmm = 10  # might have to set higher if using multiple devices
                     #if log.inLastX(inlastAmm, f"Availability check failed for device {entry[1]}") is True:
@@ -1690,7 +1738,7 @@ class ProtocolBook:
             if nothingchanged:
                 break
         for protocol in self.protocollist:
-            if protocol[0][0] == "H" and protocol[0][1] == "A":
+            if protocol[0][0] == "H" and protocol[0][1] == "A" and protocol[0][2] >= "0" and protocol[0][2] <= "9":
                 if HaState == "OFF":
                     log.info(f"Switching off protocol {protocol[1]} with id of {protocol[0]} due to MQTTDISCOVERY setting being turned off")
                     protocol[2] = "off"
@@ -2228,15 +2276,27 @@ def on_message(client, userData, msg):
                                 else:
                                     continue
 
-                ### check in logs if data was ever received from sensor (fix issue where if entity was put into offline in hass in a different session it was not brought back automatically, only after device went offline and came back)
-                sendOnlineAvail = False
+                ### check in logs if data was ever received ,from sensor (fix issue where if entity was put into offline in hass in a different session it was not brought back automatically, only after device went offline and came back)
+                '''sendOnlineAvail = False
                 result = log.inLastXConsole(10, f'PRTCL_VAL:{str(msg.payload).split(":")[1].split("@")[0]}', maxOccurance=2)  # azet 2 a maxOccurance mert amikor megjon az uzenet es azt triggereli, akk hozza is adodik a loghoz, szoval mar lesz benne 1
                 if result is False:
                     result = log.inLastXConsole(150, f'PRTCL_VAL:{str(msg.payload).split(":")[1].split("@")[0]}', maxOccurance=2) # changed to 150 due to frequent not found messages
                 if result is False:
                     log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
-                    sendOnlineAvail = True
+                    sendOnlineAvail = True'''
                 # also maybe check if a set to unavailable happeneded beofre this és akkor is megcsinal ill forcevalue???
+                mac = ""
+                for element in configtable:
+                    if str(msg.topic) == element[1]:
+                        mac = element[0]
+                sendOnlineAvail = False
+                result = log.inLastXConsole(10, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2)  # azet 2 a maxOccurance mert amikor megjon az uzenet es azt triggereli, akk hozza is adodik a loghoz, szoval mar lesz benne 1
+                if result is False:
+                    result = log.inLastXConsole(150, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2) # changed to 150 due to frequent not found messages
+                if result is False:
+                    log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
+                    sendOnlineAvail = True
+
 
                 ### end of extra part
 
@@ -2366,7 +2426,7 @@ client.loop_start()
 dailyRunAlready = False
 isFinished = False
 isPingNeeded = False
-pingRunning = True
+pingRunning = False
 
 def pingLoop():
     while isPingNeeded:
@@ -2394,6 +2454,7 @@ def runTimeLoop():
                 log.warning("Long protocol timer overexceeded by at least 2x")
             setptl()
             prot.protLong()
+
         if datetime.datetime.now().hour == 5 and datetime.datetime.now().minute == 30:
             dailyRunAlready = False
         if (datetime.datetime.now().hour >= 23 or datetime.datetime.now().hour <= 1) and dailyRunAlready is False:
@@ -2416,11 +2477,14 @@ def runTimeLoop():
         if isPingNeeded and not pingRunning:
             pingRunning = True
             pingThread = threading.Thread(target=pingLoop)
+            pingThread.start()
+            log.console("Started ping thread")
         if not isPingNeeded and pingRunning:
             pingThread.join()
+            log.console("Closed ping thread")
             pingRunning = False
 
-        if len(p.ping_tasks2) != 0:
+        if p.returnLenghtpt2() != 0:
             isPingNeeded = True
         else:
             isPingNeeded = False
@@ -2667,10 +2731,10 @@ class MyHandler(SimpleHTTPRequestHandler):
                         # Update only the LAST REQUESTED power mode.
                         power_entry[2] = requested_mode
 
-                        add_log(
+                        '''add_log(
                             f"Power mode for {mac} requested to change to {requested_mode}",
                             "info"
-                        )
+                        )'''
 
                         log.info(
                             f"Power mode request for {mac}: {requested_mode}"
@@ -3776,7 +3840,7 @@ log.info("Finished startup")
 
 
 #hass integracio diagnostica subcategoryba (hasson belul diagnostic csoport) mehet ping meg stb (sw hw version, hardware leiras (marka tipus))
-#---ONLY PING DONE----
+#---ONLY PING DONE----> ADD POWER MODE (maybe as a list so we can the requested power mode from hass)
 
 #server sajat entity hassban????
 
@@ -3790,25 +3854,20 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 # weblapra hass verzérlőgombok
 #remove from hass (on entity level), re-add to hass, stb....
 
-#ellenorzest adni neki h minden parameter megvan e az adressable rgb ledeknek
-#ha kezdo ledszam nincs megadva csak egy szám a végé (ketto helyett), akkor 0tol indul es megadott szam a hossz
+ #ellenorzest adni neki h minden parameter megvan e az adressable rgb ledeknek
+ #ha kezdo ledszam nincs megadva csak egy szám a végé (ketto helyett), akkor 0tol indul es megadott szam a hossz
 
-### --- ELV DONE ELL ---
-# nem mennek a protocollok amig ping van mert a ping runtime egybe van a protocolhivasokkal
-# ami igy gatya mert a protocllok time alapuak
-# start thread for it then join it back once finished
-#kell egy valtozo h is ping thread started, mert ha igen ne csinaljon uj threadet amig megy az elozo
-# 1820-as sor kornykee
-### --- ELV DONE ELL ---
+    ### ---  DONE  ---
+    # nem mennek a protocollok amig ping van mert a ping runtime egybe van a protocolhivasokkal
+    # ami igy gatya mert a protocllok time alapuak
+    # start thread for it then join it back once finished
+    #kell egy valtozo h is ping thread started, mert ha igen ne csinaljon uj threadet amig megy az elozo
+    # 1820-as sor kornykee
+    ### ---  DONE  ---
 
-#még meg kell csinálni a synctohasst rendesen hogy az updatelt datat frissitse hassba is be
-#---Azt ugy kene lehet megcsinálni hogy törli egyik saját diagnostikai entityjet (ami még nem létezik), a snyctohass protocol meg bekuldi ujra, (lehet esetleg direktbe hivni egy dataupdate utan), és felülirj a magavla vitt device dataval
-### ---ELV DONE TESZTELNI---
-
-#ill azt is meg kene csinalni h hogy ha egy entityt kiveszunk hardwerbol akkor az hassbol is jojjon ki jelenleg ez sincs megcsinalva
-#!!!!! a pinget ugy kene kotni hozza h a dataline.ssplit(",")[2] szal a unique id eleje ("_Ping") nelkuli resz ha benne van (es csak az semmi mas egyeb kiegeszites utana(_Lamp pl) akk hagyja bent, de ha nincs vegye ki
-#ugyanigy kene lehet megcsinalni a tobbi entity kivetelet is
-#---DONE-----
+    #még meg kell csinálni a synctohasst rendesen hogy az updatelt datat frissitse hassba is be
+    #---Azt ugy kene lehet megcsinálni hogy törli egyik saját diagnostikai entityjet (ami még nem létezik), a snyctohass protocol meg bekuldi ujra, (lehet esetleg direktbe hivni egy dataupdate utan), és felülirj a magavla vitt device dataval
+    ### ---ELV DONE TESZTELNI---
 
 #logs in the web on device basis, where the logs from the given devices are visible (switching a protocol to off/short stb)
 # Individual protocol control like for server but n device basis????
@@ -3817,43 +3876,39 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 #---ELVETVE---#
 
 # ---- ---- ill lehet log3ba mehetne egy olyan update h az utolso 50 logot bent tartja memoriaban (50 az nem sok nem is kevés) és akkor nem a hattertarat kene gyepalni a folyamatos olvasasokkal (maybe 150 mert az ize i s150-el megy mostmar???)
+#update for this, since 150 is not enough for 2 devices with a dht and a bme (one with a dht, and one with bme)
+#no update for 150 lines helyett ha van egy oylan h a (hozzatartozo) device removed from activerrors list mert ujra elerhető lett akkor kuldje az online-t
+###   ---   CHANGED TO 'removed from activerror list' IN LOG FILE INSTEADD OF CONSOLE --- ELV DONE TESTELNI
 
 #maybe add a "last run" time data point for the protocol page on the web interface
 
 #valami stat page h mi az actual running config a serveren
-#mer menet kozben le lett veve a wll infora warningrol de a protocol freqchange infok nem jonnek at rajta (reload configtablebol is csak anniy jott ki amit a webes rész kezel)
-
-#ujrainditasonkent (hass ujraind) mindig levágja this entity is no longer provided by mqtt intergration- statebe (ujraaddolás után megy tovabb es megmarad a history is) ---DONE
-#----DONE---
+#mer menet kozben le lett veve a wll infora warningrol de a protocol freqchange infok nem jonnek at rajta (reload configtablebol is csak anniy jott ki amit a webes rész kezel amit szinten javitani kene)
 
 #change the way we reload the configtable
 #first load in all the data, then replace the currently used list
 #Most volt egy rosszul megirt config, azt rafrissitettem es legyilkolta az egesz mqtt-t meg mindent leölt
 
 #hogyha protocol frissiti a hassImportData.txt-t akkor hass syncronizálja már be az adatot a memoryba, mer igy oke h áttölti a változást de amig a memory nincs ujratöltve, amit nem tölt magától ujra addig nem aktualizálodik a friss adat
+# mindegyik hasznalat utan van egy self.reloadData szoval
+# ---   DONE   ----
 
 #automatically send a reload pinconfig when relevant parts of config changed (Dont yet know how to implement in a good way)
 
 #qol upgrade idea: only send error for device av check failed if not in activerror (vagy ha az aktiverrorhoz berakas returnje true lett)
+###---DONE---
 
 
-######################----DONE----#################
-#powerMode(normal, powerSave, powerSave+)
-#handle powermode negotiation on both server and client side
-#normal is current
-# powersave is light powersaving, new protocol times: short:.5s-->15s, normal5s-->2.5m, long1m-->30m, pings every 5m instead of 1m (light rf powersaving for wifi)
-# powersave+ is extreme powersaving, new protocol times:  short:.5s-->1m, normal5s-->5m, long1m-->60m, pings every 10m instead of 1m (heavy rf powersaveing for wifi)
-#PRTCL_PWRSV:NORMAL, PRTCL_PWRSV:PWRSV and PRTCL_PWRSV:PWRSVEX
-#
-#SOMEHOW HAVE TO SOLVE SO THAT CONFIG RELATED PROTOCOLS DONT GET UPDATED TO THESE NEW TIMES (configproto, validateproto és a tobbi maradjon a regi timeren)
-######################----DONE----#################
-
-
-#send updates if last assigned and current are not the same  ---DONE
-#update current from onmessage ---DONE
-#display current mode on webpage under device like hw/sw data ---DONE
-#add button or dropdown menu to change powersaving mode from webpage ---DONE
-#ping retimeokat megcsinalni az eszkozokhoz ----DONE
+    ######################----DONE----#################
+    #powerMode(normal, powerSave, powerSave+)
+    #handle powermode negotiation on both server and client side
+    #normal is current
+    # powersave is light powersaving, new protocol times: short:.5s-->15s, normal5s-->2.5m, long1m-->30m, pings every 5m instead of 1m (light rf powersaving for wifi)
+    # powersave+ is extreme powersaving, new protocol times:  short:.5s-->1m, normal5s-->5m, long1m-->60m, pings every 10m instead of 1m (heavy rf powersaveing for wifi)
+    #PRTCL_PWRSV:NORMAL, PRTCL_PWRSV:PWRSV and PRTCL_PWRSV:PWRSVEX
+    #
+    #SOMEHOW HAVE TO SOLVE SO THAT CONFIG RELATED PROTOCOLS DONT GET UPDATED TO THESE NEW TIMES (configproto, validateproto és a tobbi maradjon a regi timeren)
+    ######################----DONE----#################
 
 
 #add newly added features from esp code to rp code (pl feldolgozatlan/ismeretlen uzenetekre reagalas)
@@ -3861,3 +3916,33 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 
 #run each (short/norm/long) protocol in seperate thread and then join back such in the case of daily prot
 #(viszonlyag sokszor jon ki a short protocl timer overexceeded at least 2x)
+
+#give a way to reinit pingpowertimes during runtime (once updated during running with reload configtable, it wont load into the hass list (maybe with reload hass-->have to check)
+#reloading HASS does init pingpowertimes
+#add seperate reaload button for it?
+
+#maybe change avCheckerl id from HA3 to somethings else, since pings are still required in the web interface not only hass
+
+#hogyha HASS class (ha.xx) nelkul probalunk futtatni valamit akkor AttributeError: 'str' object has no attribute 'checkAvailablity' error jon ki
+#akkor fordult elo mikor rossz hass kulcs miatt nem lett peldanyositva de en manualban elinditottam az avCheckerl-t
+
+# CHANGED handlong and grouping of HA protocols
+#ediig csak az volt nezve h elso karakter H a masodik karatker A-e, emellé beraktam hogy a 3adik  az nagyonbbegynelo 0 es kisebbegynelo 9 szobal szam e
+# igy elv mostmar a HA kezdetueken kivul is felismert volna, de mostmar csak a HA+számra triggerel elv
+#----TESZTELNI----
+
+#dummy device, which is used to update device data is not being sent to hass, due to not being written into hassimportdata.txt
+
+#on startup
+#put all devices into activeerrors offline, take out on value message or after succesfully connecting to own channel
+
+
+#log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
+#-részt ujradolgozni
+#ha benne van h added to activerror list inlastx 150 (de sok a 150 mondjuk) és utana van egy olyan h removed that same device, akkor mehet az online message
+#pontosabban ugy kene h removed from list, és utana ne legyen added to list, és a removed from list lehetne tobb darabszammal
+#ezt kombinálni a fentebbi uzenettel hogyha van oylan is az egyel fentebbi kombinacio utan akkor staright up csak ne kuljdom onlinet mer mar ment
+
+
+#ping kikuldesbe berakni egy feltetelt hogy ha nincs tobb ping soron ne kuldjon ki
+#vagy elobbre rakni a feldolgozasst mint a torlest, mert most forditva van
