@@ -12,7 +12,8 @@ from requests import get
 # multithreading
 import threading
 finishedStartup = False
-SyncOnlyWhenOnTestServer = False  # csak akkor syneljen hassba ha a test serveren van ezt kulon en adtam meg majd el kell tavolitani, ONLY FOR DEVELOPMENT
+SyncOnlyWhenOnTestServer = True  # csak akkor syneljen hassba ha a test serveren van ezt kulon en adtam meg majd el kell tavolitani, ONLY FOR DEVELOPMENT
+procTimeStat = False  # enable or disable a feature for monitoring avg msg processing time accross the last 100 msgs
 version = "0.4.2"
 
 PROTOCOL_TIMEOUT_SHORT = 0.5
@@ -23,6 +24,7 @@ PROTOCOL_TIME = 0
 PROTOCOL_TIME_LONG = 0
 
 TBCCONFLICTHANDLE = "error"  # options are "error"/"delete"
+TBCFORADD = True
 
 webcontrol = True
 webloglevel = "INFO"
@@ -115,6 +117,9 @@ L3error_max_rep_within = 100
 L3timeoutforwarning = 15
 P2max_ping_storage = 25
 
+messageProcessTimes = []
+avgMessageProcessTime = 0
+
 # még a pingekhez lehetne adni sorszámot, hogy tudjuk melyik pingre válaszol, mer most ha kimegy ketto ping de olyan lassan valszol h az elso timoutol de a masodik kikuldese utan jon vissza az elso akkor annak jo lesz a statja de igazabol az elsore valaszolt, majd ha nagyon belekavar akk megcsinalom
 ping_tasks = []  # mac,numberofpings(forcountdown),numberofpings,pingstart,pingend,pingtimesum,succestimer,timoutcounter
 
@@ -202,8 +207,10 @@ class Logger3:
         while len(self.consoleCache) > self.consoleMaxKeep:
             del self.consoleCache[0]
     def console(self, info):  # print to console only
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
         print(info)
+        self.putToConsoleFile(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
 
 
     def info(self, info):
@@ -259,18 +266,7 @@ class Logger3:
         if x > self.logMaxKeep:
             self.logMaxKeep = x
         occurance = 0
-#        lastlines = []
-#        with open(f"{self.filepath}{self.filename}_log3.txt", encoding='UTF-8') as file:
-#            for line in (file.readlines()[-x:]):
-#                lastlines.append(line)
-#        for i in range(0, len(lastlines)):
-#            if text in lastlines[i]:
-#                if returnNumber:
-#                    return i
-#                else:
-#                    return True
-
-        for i in range(0, len(self.logCache)):
+        for i in reversed(range(0, len(self.logCache)-1)):
             if text in self.logCache[i]:
                 occurance += 1
                 if occurance >= maxOccurance:
@@ -278,29 +274,16 @@ class Logger3:
                         return i
                     else:
                         return True
-        #for line in lastlines:
-            #if text in line:
-                #return True
-        return False
+        if returnNumber:
+            return -1
+        else:
+            return False
 
     def inLastXConsole(self, x, text, returnNumber = False, maxOccurance = 1):
         if x > self.consoleMaxKeep:
             self.consoleMaxKeep = x
-#        lastlines = []
         occurance = 0
-#        with open(f"{self.filepath}{self.filename}_console3.txt", encoding='UTF-8') as file:
-#            for line in (file.readlines()[-x:]):
-#                lastlines.append(line)
-#        for i in range(0, len(lastlines)):
-#            if text in lastlines[i]:
-#                occurance += 1
-#                if occurance >= maxOccurance:
-#                    if returnNumber:
-#                        return i
-#                    else:
-#                        return True
-
-        for i in range(0, len(self.consoleCache)):
+        for i in reversed(range(0, len(self.consoleCache)-1)):
             if text in self.consoleCache[i]:
                 occurance += 1
                 if occurance >= maxOccurance:
@@ -308,13 +291,207 @@ class Logger3:
                         return i
                     else:
                         return True
-        #for line in lastlines:
-            #if text in line:
-                #return True
-        return False
+        if returnNumber:
+            return -1
+        else:
+            return False
+
+class Logger4:
+
+    wll = "INFO"
+
+    timeoutforwarning = 15  # minutes within the same warning cant be sent
+    # ammounttimeout = 25  # within last ammount cant be repeated #CURRENTLY NOT USED
+    # errors are all excluded from this ruling
+    error_max_rep = 5
+    error_max_rep_within = 100
+    error_list = []
+
+    timeoutlist = []
+
+    filename = ""
+    filepath = f"{os.getcwd()}/logs/"
+    datetime.datetime.now() - datetime.timedelta(minutes=timeoutforwarning)
+    if not os.path.exists(filepath[:-1]):
+        print("logs folder does not exist, creating...")
+        os.makedirs(filepath[:-1])
+
+    logCache = []
+    logMaxKeep = 25
+    consoleCache = []
+    consoleMaxKeep = 50
+
+    logWOQue = [] #log writeout que #level/message
+
+    def __init__(self):
+        global L3timeoutforwarning
+        global L3error_max_rep_within
+        global L3error_max_rep
+        global webloglevel
+        self.wll = webloglevel
+        self.timeoutforwarning = L3timeoutforwarning
+        self.error_max_rep = L3error_max_rep
+        if self.error_max_rep == 0:
+            self.error_max_rep = 9
+            self.error_max_rep_within = 1
+        else:
+            self.error_max_rep_within = L3error_max_rep_within
+        self.filename = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S').replace(" ", "_").replace(":", "_")
+        file = open(f"{self.filepath}{self.filename}_log3.txt", "w")
+        file.close()
+        file = open(f"{self.filepath}{self.filename}_console3.txt", "w")
+        file.close()
+        self.info("Started Logger3...")
+
+    def updateWLL(self):
+        global webloglevel
+        self.wll = webloglevel
+
+    @staticmethod
+    def printOnly(info):
+        print(info)
+
+    def forwardToWeb(self, info, level):
+        add = False
+        if finishedStartup:
+            if self.wll == "INFO":
+                add = True
+            elif self.wll == "WARNING":
+                if level.upper() == "WARNING" or level.upper() == "ERROR":
+                    add = True
+            elif self.wll == "ERROR":
+                if level.upper() == "ERROR":
+                    add = True
+
+            if add:
+                add_log(info, level)  # for sending logs to webpage
+            else:
+                return
+
+    def putToLogFile(self, text):
+        with open(f"{self.filepath}{self.filename}_log3.txt", "a", encoding="utf-8") as file:
+            file.write(text)
+        self.logCache.append(text)
+        while len(self.logCache) > self.logMaxKeep:
+            del self.logCache[0]
+    def putToConsoleFile(self, text):
+        with open(f"{self.filepath}{self.filename}_console3.txt", "a", encoding="utf-8") as file:
+            file.write(text)
+        self.consoleCache.append(text)
+        while len(self.consoleCache) > self.consoleMaxKeep:
+            del self.consoleCache[0]
+    def console(self, info):  # print to console only
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
+        print(info)
+        self.putToConsoleFile(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
 
 
-log = Logger3()
+    def info(self, info):
+        self.forwardToWeb(info, "info")
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
+        print(info)
+        self.putToLogFile(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
+        self.putToConsoleFile(f"\n[Info] [{timestamp}]: {info} FROM {wherefrom}")
+
+
+    def warning(self, info):
+        # ---- LOGIC TO NOT SEND MULTIPLES WITHIN TIME ---- #
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
+        w = 0
+        while w < len(self.timeoutlist):
+            if self.timeoutlist[w][0] <= datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'):
+                self.timeoutlist.remove(self.timeoutlist[w])
+            w += 1
+        isalreadyin = False
+        for line in self.timeoutlist:
+            if f"[Warning]: {info} FROM {wherefrom}" == line[1]:
+                isalreadyin = True
+        # ---- END OF LOGIC TO NOT SEND MULTIPLES WITHIN TIME ---- #
+        if isalreadyin is False:
+            self.forwardToWeb(info, "warning")
+            print(f"\n[Warning] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
+            self.putToLogFile(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
+            self.timeoutlist.append(f"{datetime.datetime.now() + datetime.timedelta(minutes=self.timeoutforwarning)}*[Warning]: {info} FROM {wherefrom}".split("*"))
+            self.putToConsoleFile(f"\n[Warning] [{timestamp}]: {info} FROM {wherefrom}")
+
+    def error(self, info):
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        wherefrom = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_code.co_name
+
+        # ---- START OF LOGIC TO NOT SEND MULTIPLES WITHIN LAST X ---- #
+        self.error_list.append(f"[Error]: {info} FROM {wherefrom}")
+        while len(self.error_list) > self.error_max_rep_within:
+            self.error_list.pop(0)
+        count = 0
+        for line in self.error_list:
+            if f"[Error]: {info} FROM {wherefrom}" == line:
+                count += 1
+        # ---- END OF LOGIC TO NOT SEND MULTIPLES WITHIN LAST X ---- #
+        if count < self.error_max_rep + 1:
+            self.forwardToWeb(info, "error")
+            print(f"\n[Error] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {info} FROM {wherefrom}")
+            self.putToLogFile(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
+            self.putToConsoleFile(f"\n[Error] [{timestamp}]: {info} FROM {wherefrom}")
+
+    def inLastX(self, x, text, returnNumber = False, maxOccurance = 2):
+        if x > self.logMaxKeep:
+            self.logMaxKeep = x
+        occurance = 0
+        for i in reversed(range(0, len(self.logCache)-1)):
+            if text in self.logCache[i]:
+                occurance += 1
+                if occurance >= maxOccurance:
+                    if returnNumber:
+                        return i
+                    else:
+                        return True
+        if returnNumber:
+            return -1
+        else:
+            return False
+
+    def inLastXConsole(self, x, text, returnNumber = False, maxOccurance = 1):
+        if x > self.consoleMaxKeep:
+            self.consoleMaxKeep = x
+        occurance = 0
+        for i in reversed(range(0, len(self.consoleCache)-1)):
+            if text in self.consoleCache[i]:
+                occurance += 1
+                if occurance >= maxOccurance:
+                    if returnNumber:
+                        return i
+                    else:
+                        return True
+        if returnNumber:
+            return -1
+        else:
+            return False
+
+    def addTologWOQue(self, level, message):
+        self.logWOQue.append([level.upper(), message])
+
+    def logWO(self):
+        if len(self.logWOQue) != 0:
+            if self.logWOQue[0][0] == "CONSOLE":
+                self.console(self.logWOQue[0][1])
+            elif self.logWOQue[0][0] == "INFO":
+                self.info(self.logWOQue[0][1])
+            elif self.logWOQue[0][0] == "WARNING":
+                self.warning(self.logWOQue[0][1])
+            elif self.logWOQue[0][0] == "ERROR":
+                self.error(self.logWOQue[0][1])
+            else:
+                self.error(f"Unkown message type was given in logWOQue, type was:{self.logWOQue[0][0]}")
+            del self.logWOQue[0]
+            return True #return true to say i did something
+        else:
+            return False # return false to say i did nothing
+
+
+log = Logger4()
 
 log.info("Loading server configuration...")
 
@@ -361,7 +538,7 @@ def testHassKey():
 
 def loadConfig():
     log.info("Loading server config...")
-    global PROTOCOL_TIMEOUT, PROTOCOL_TIMEOUT_SHORT, PROTOCOL_TIMEOUT_LONG, broker, port, configreqtopic, configrepltopic, devicetopic, username, password, TBCCONFLICTHANDLE, HassAPIkey, client_id, HassIP, L3timeoutforwarning, L3error_max_rep, L3error_max_rep_within, P2max_ping_storage, HaState, webcontrol, webloglevel,server_id
+    global PROTOCOL_TIMEOUT, PROTOCOL_TIMEOUT_SHORT, PROTOCOL_TIMEOUT_LONG, broker, port, configreqtopic, configrepltopic, devicetopic, username, password, TBCCONFLICTHANDLE, TBCFORADD, HassAPIkey, client_id, HassIP, L3timeoutforwarning, L3error_max_rep, L3error_max_rep_within, P2max_ping_storage, HaState, webcontrol, webloglevel,server_id
     with open("CONFIGURATION.txt", "a+", encoding='UTF-8') as configfile:
         configfile.seek(0)
         linecount = 0  # sorok számozása
@@ -397,6 +574,8 @@ def loadConfig():
                     client_id = linecontent.split("=")[1]
                 elif param == "TBCCONFLICTHANDLE":
                     TBCCONFLICTHANDLE = linecontent.split("=")[1]
+                elif param == "TBCFORADD":
+                    TBCFORADD = linecontent.split("=")[1]
                 elif param == "HAK":
                     HassAPIkey = linecontent.split("=")[1]
                 elif param == "HASS":
@@ -457,6 +636,8 @@ def loadConfigTable(): # megoldani hogy a rosszul formázottakat ne csak magána
             if line.rstrip()[0] != "#":  # kezelje le ha ures a configtable.txt
                 if len(line.rstrip().split(",")) < 2:  # ha nincs vessző, szóval valami biztos hiányzik
                     log.error(f"Config invalid, not enough arguments in line {linecount}")
+                elif len(line.rstrip().split(",")) > 3:
+                    log.error(f"Config invalid, more than 3 arguments found at line {linecount}")
                 else:
                     readLine = line.rstrip()
                     if "@" in line.rstrip().split(',')[0]:
@@ -465,7 +646,15 @@ def loadConfigTable(): # megoldani hogy a rosszul formázottakat ne csak magána
                             readLine = readLine.replace(f"@{readLine.split(',')[0].split('@')[1]},", "@NORMAL,")
 
                         powerMode_handler.append([readLine.split(',')[0].split("@")[0], "n/a", readLine.split(',')[0].split("@")[1].upper()])
-                        tobeaddedline = ",".join([readLine.split(',')[0].split("@")[0], readLine.split(',')[1], readLine.split(',')[2]])
+                        if len(readLine.split(",")) == 2:
+                            tobeaddedline = ",".join([readLine.split(',')[0].split("@")[0], readLine.split(',')[1]])
+                        elif len(readLine.split(",")) == 3:
+                            if readLine.split(",")[2] == "":
+                                tobeaddedline = ",".join([readLine.split(',')[0].split("@")[0], readLine.split(',')[1], ""])
+                            else:
+                                tobeaddedline = ",".join([readLine.split(',')[0].split("@")[0], readLine.split(',')[1], readLine.split(',')[2]]) #van vesszo es van pinconfig
+
+
                         configtable.append(tobeaddedline.split(','))
                         deviceData.append(f"{tobeaddedline.split(',')[0]}*n/a*n/a*n/a*n/a*n/a".split("*"))
                     else:
@@ -610,6 +799,21 @@ def tbc(mac_address):
             tobeconfigured.write(f"\n{mac_address}")
     #tobeconfigured.close()
 
+    if TBCFORADD:
+        alreadyaddedlist = []
+        with open("configtable.txt", "a+", encoding="UTF-8") as tobeconfigured:
+            tobeconfigured.seek(0)
+            while line := tobeconfigured.readline():
+                text = line.rstrip()
+                alreadyaddedlist.append(text)
+        alreadyAdded = False
+        for element in alreadyaddedlist:
+            if mac_address in element and element[0] != "#":
+                alreadyAdded = True
+                break
+        if alreadyAdded is False:
+            with open("configtable.txt", "a", encoding="UTF-8") as tobeconfigured:
+                tobeconfigured.write(f"\n{mac_address}")
 
 def setRuntimeDataPing(mac, result):
     for i in range(0, len(deviceData)):
@@ -661,7 +865,21 @@ class Ping2:
     def ping_runtime(self):  # ebben is lehetne sokkat egyszeriusiteni ha kivennenk a "in range" reszeket
         while len(self.ping_results2) > self.max_ping_storage:
             self.ping_results2.pop(0)
+
         if len(self.ping_tasks2) != 0:  # pingelés func
+            for i in range(0, len(self.ping_tasks2)):  # pingtimecalc
+                if self.ping_tasks2[i][3] < self.ping_tasks2[i][4]:  # ha pingstart hamarabb volt mint pingend
+                    pingtime = self.ping_tasks2[i][4] - self.ping_tasks2[i][3]  # calc pingtime
+                    if pingtime < ping_timeout:  # ha nem timoutolt
+                        log.console(pingtime)
+                        self.ping_tasks2[i][5] = self.ping_tasks2[i][5] + pingtime  # add to pingtimesum
+                        self.ping_tasks2[i][6] += 1  # increase succescounter by 1
+                    else:
+                        log.warning(f"{self.ping_tasks2[i][0]} lassan valaszolt: {pingtime} seconds")
+                        self.ping_tasks2[i][7] += 1  # add one to timeout
+                if self.ping_tasks2[i][3] > self.ping_tasks2[i][4] and self.ping_tasks2[i][3] + ping_timeout < time.monotonic() and self.ping_tasks2[i][3] != 1:  # nem jött válasz timout (ha pingtart nagyobb mint pingend (elozobol) ÉS pingstart + timout kevesebb mint mostani ido ÉS nem kezdőállapot
+                    self.ping_tasks2[i][7] += 1  # add one to timout
+
             for i in reversed(range(0, len(self.ping_tasks2))):  # törlés és kiiras
                 if self.ping_tasks2[i][6] + self.ping_tasks2[i][7] == self.ping_tasks2[i][2]:  # kiiras
                     if self.ping_tasks2[i][6] == 0:  # nem volt válaszolt ping
@@ -673,19 +891,7 @@ class Ping2:
                         self.ping_results2.append(f"{self.ping_tasks2[i][8]}*Successful".split("*"))
                         setRuntimeDataPing(self.ping_tasks2[i][0], str(int(self.ping_tasks2[i][5]/self.ping_tasks2[i][6]*1000)))
                     self.ping_tasks2.pop(i)  # torles
-            for i in range(0, len(self.ping_tasks2)):  # pingtimecalc
-                if self.ping_tasks2[i][3] < self.ping_tasks2[i][4]:  # ha pingstart hamarabb volt mint pingend
-                    pingtime = self.ping_tasks2[i][4] - self.ping_tasks2[i][3]  # calc pingtime
-                    if pingtime < ping_timeout:  # ha nem timoutolt
-                        log.console(pingtime)
-                        self.ping_tasks2[i][5] = self.ping_tasks2[i][5] + pingtime  # add to pingtimesum
-                        self.ping_tasks2[i][6] += 1  # increase succescounter by 1
-                    else:
-                        log.warning(f"{self.ping_tasks2[i][0]} lassan valaszolt: {pingtime} seconds")
-                        self.ping_tasks2[i][7] += 1  # add one to timeout
 
-                if self.ping_tasks2[i][3] > self.ping_tasks2[i][4] and self.ping_tasks2[i][3] + ping_timeout < time.monotonic() and self.ping_tasks2[i][3] != 1:  # nem jött válasz timout (ha pingtart nagyobb mint pingend (elozobol) ÉS pingstart + timout kevesebb mint mostani ido ÉS nem kezdőállapot
-                    self.ping_tasks2[i][7] += 1  # add one to timout
             for i in range(0, len(self.ping_tasks2)):  # send ping
                 if (self.ping_tasks2[i][3] < self.ping_tasks2[i][4] and self.ping_tasks2[i][4] - self.ping_tasks2[i][3] < ping_timeout) or (self.ping_tasks2[i][3] > self.ping_tasks2[i][4] and self.ping_tasks2[i][3] + ping_timeout < time.monotonic()):  # ha lepingelt vagy timoutolt
                     topic = None
@@ -2109,9 +2315,12 @@ def extract_address(message): #also format
 
 
 def get_device_config(address):
-    for i in (0, len(configtable)-1):
-        if address == configtable[i][0]:
-            return configtable[i]
+    for element in configtable:
+        if address == element[0]:
+            return element
+    #for i in (0, len(configtable)-1):
+    #    if address == configtable[i][0]:
+    #        return configtable[i]
 
 
 def send_config(address, config):
@@ -2122,7 +2331,12 @@ def send_config(address, config):
 
 def domainRemover(input):
     list = input.split("/")
-    tbr = str(list[0])
+    tbr = ""
+    try:  # had to add this, because if a domain was defined as the first item in pinconfig, this would not remove it
+        tbr = tbr + f"{list[0].split('(')[0]}{list[0].split(')')[1]}"
+    except:
+        tbr = tbr + f"{list[0]}"
+    #tbr = str(list[0])
     for i in range(1, len(list)):
         tbr = tbr + "/"
         try:
@@ -2132,10 +2346,153 @@ def domainRemover(input):
     return tbr
 
 
+valQue = [] #prtcl_val que list, topic/message
+valQueProcessRunning = False
+valQueProcessNeeded = False
+
+def processVALQue(msgtopic, msgpayload):
+    if len(str(msgpayload).split("/")) < 2:  # ha single sensor
+        name = str(msgpayload).split(":")[1].split("@")[0]
+        value = str(msgpayload).split("@")[1][:-1]
+        SensorName = name  # sensor name
+        Device = ""  # mac address
+        Domain = ""
+        for device in configtable:
+            if str(msgtopic) == device[1]:
+                Device = device[0]
+                for entry in device[2].split("/"):
+                    if "(" in entry:
+                        compname = entry.split("@")[1].split("(")[0]
+                    else:
+                        compname = entry.split("@")[1]
+                    if "_" in name:
+                        name = name.split("_")[0]
+                    if name in compname:
+                        if len(entry.split("(")) == 2:  # ha tud (-ra splitelni akkor van domain definialva
+                            Domain = entry.split("@")[1].split("(")[1].split(")")[0]
+                        else:
+                            continue
+
+        mac = ""
+        for element in configtable:
+            if str(msgtopic) == element[1]:
+                mac = element[0]
+        sendOnlineAvail = False
+
+        """result = log.inLastXConsole(10, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2)  # azet 2 a maxOccurance mert amikor megjon az uzenet es azt triggereli, akk hozza is adodik a loghoz, szoval mar lesz benne 1
+        if result is False:
+            result = log.inLastXConsole(150, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2) # changed to 150 due to frequent not found messages
+        if result is False:
+            log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
+            sendOnlineAvail = True """
+        indexOfMessage = -1
+        indexOfAdded = -1
+        indexOfRemoved = -1
+
+        #minél régebbi annál kisebb az indexe nekunk meg fordtiva kell
+        x = 150  # ammount of lines to check, also used to invert the index coming back from inlastxconsoel
+
+        indexOfSensor = log.inLastXConsole(x, f'PRTCL_VAL:{SensorName}@', returnNumber=True, maxOccurance=2)  # a mostani beérkezett előtt nézzük hogy van e azért 2 a amxoccurance
+        if indexOfSensor == -1:  # ha nem volt az elozo 150be sensor value console log
+            indexOfSensor = x - indexOfSensor
+            log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+            sendOnlineAvail = True
+
+        else: # ha volt sensor log
+            indexOfMessage = log.inLastXConsole(x, f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"', returnNumber=True, maxOccurance=1)  # get index of f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+            if indexOfMessage != -1:
+                indexOfMessage = x - indexOfMessage
+            indexOfAdded = log.inLastXConsole(x, f'Device {mac} added to activeErrors list with reason:"Device offline"', returnNumber=True, maxOccurance=1)  # get index of added to activerrors
+            if indexOfAdded != -1:
+                indexOfAdded = x - indexOfAdded
+            indexOfRemoved = log.inLastXConsole(x, f'Device {mac} removed from activeErrors list', returnNumber=True, maxOccurance=1)  # get index of removed from activerrors
+            if indexOfRemoved != -1:
+                indexOfRemoved = x - indexOfRemoved
+            ###forditva megy a listan vegig, leguajbbtol legregebbiig
+
+            if indexOfMessage == -1 and indexOfRemoved == -1 and indexOfAdded == -1:  # absolutely no data from device
+                if not log.inLastX(x/3, f"No previous data from device {mac}, sending forcevalues...", maxOccurance=1):
+                    log.info(f"No previous data from device {mac}, sending forcevalues...")
+                log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+                sendOnlineAvail = True
+            elif indexOfMessage != -1 and indexOfRemoved == -1 and indexOfAdded == -1:  # only sensor data from device
+                #log.info("Only sensor data available from device, no availability status")
+                sendOnlineAvail = False
+            elif indexOfRemoved != -1 and indexOfAdded == -1: #REMOVED PARTS___indexOfMessage != -1 and ------  # online was sent, device got back alive but went offline out of range, so fix older than revival
+                sendOnlineAvail = False
+            elif indexOfRemoved == -1 and indexOfAdded != -1: #REMOVED PARTS___ indexOfMessage != -1 and  and indexOfMessage < indexOfSensor------- # online was sent, device wnet offline but came back alive out of range, so fix older than going offline (device should be offline now)
+                sendOnlineAvail = True
+                if activeErrorHandler(f"{mac} offline", "Device did not respond to ping request", "remove"):  # remove device from activeerror
+                    log.info(f'Device {mac} removed from activeErrors list with reason:"Device sent sensor value, removing from activeError list and sending PRTCL_FORCEVALUES", removed by on_message:PRTCL_VAL processor')
+                else:  # could not remove activeerror status
+                    log.warning(f"Warning from on_message:PRTCL_VAL, device should be offline ({mac}), attempted to remove actieerror status but failed with values: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")
+                client.publish(str(msgtopic), "PRTCL_FORCEVALUES")
+
+            elif indexOfMessage != -1 and indexOfRemoved != -1 and indexOfAdded != -1:  # ha egyik sem alapérték
+                if indexOfMessage < indexOfRemoved and indexOfRemoved < indexOfAdded:  # if messageindex < removed and removed < added
+                    sendOnlineAvail = False  # skip
+                elif indexOfRemoved < indexOfAdded:
+                    log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+                    sendOnlineAvail = True
+                elif indexOfAdded < indexOfRemoved:
+                    sendOnlineAvail = True
+                    log.info(f"Sensor values received from offline device ({mac})")
+                    if activeErrorHandler(f"{mac} offline", "Device did not respond to ping request", "remove"):  # remove device from activeerror
+                        log.info(f'Device {mac} removed from activeErrors list with reason:"Device sent sensor value, removing from activeError list and sending PRTCL_FORCEVALUES", removed by on_message:PRTCL_VAL processor') #log.info values received from oflfine device
+                    else:  # could not remove activeerror status
+                        log.warning(f"Warning from on_message:PRTCL_VAL, device should be offline ({mac}), attempted to remove actieerror status but failed with values: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")
+                    client.publish(str(msgtopic), "PRTCL_FORCEVALUES")
+                else:
+                    log.error(f"Unkown state occured in PRTCL_VAL availability processor with values where all items have value: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")#log.error unprecedented status in prtcl_val avaialablity processor (log all 3 indexes)
+
+            else:
+                log.error(f"Unkown state occured in PRTCL_VAL availability processor with values: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")#log.error unprecedented status in prtcl_val avaialablity processor (log all 3 indexes)
+
+
+        ### end of extra part
+
+        topic = ha.getStatusTopic(SensorName, Device, Domain)  # get status topic
+        availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
+        if sendOnlineAvail and availtopic is not None:
+            client.publish(availtopic, "online")
+        if topic is not None:
+            inlastAmm = 10  # might have to set higher if using multiple devices
+            client.publish(topic, value)
+            client.publish(availtopic, "online")
+            #if log.inLastX(inlastAmm, f"Availability check failed for device mcass{Device.lower()}") is True: #EZT KIVETTEM INNEN MERT VAN HOGY NEM REAGÁL AZ ELSŐRE: and log.inLastX(2, f": Ping failed for device {Device} previously, sending force values command") is False:
+            if log.inLastX(inlastAmm, f"Availability check succeeded for device {Device.lower()} that was previously unavailable") is True: #testelés után törölhető
+                log.info(f"Ping failed for device {Device} previously, sending force values command\n (sent from extra)")
+                client.publish(str(msgtopic), "PRTCL_FORCEVALUES")
+        else:
+            log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
+    else:
+        log.error("Báttya itt valami nem jó mert csak 1et kéne hogy kapjak egyszerre")
+
+def procVALQueRuntime():
+    global valQue
+    global valQueProcessNeeded
+    while len(valQue) != 0:
+        processVALQue(valQue[0][0], valQue[0][1])
+        del valQue[0]
+    print("HERE")
+    valQueProcessNeeded = False
+
+def addToVALQue(topic, message):
+    global valQue
+    valQue.append([topic, message])
+
+def logWORuntime():
+    while log.logWO():
+        continue
+    logWORuntimeNeeded = False
+
+
+
 delayResponseWithSecond = 0.25
 
 
 def on_message(client, userData, msg):
+    messageProcessStartTime = time.monotonic()
     global selfTestHang
     global lastMessageTime
     log.console(f"Message ({msg.payload}) arrived from ({msg.topic})")
@@ -2144,272 +2501,356 @@ def on_message(client, userData, msg):
         lastMessageTime[i+1] = lastMessageTime[i]
     lastMessageTime[0] = time.monotonic()
 
-    if msg.topic == "MCASS/hass/restart" and "RESTART" in str(msg.payload):
-        log.info("Hass was restarted, resending all entities")
-        client.publish("MCASS/hass/restart", "OK", qos=1, retain=True)
-        ha.sendAllToHass()
+    protocoltype = ""
+    if "PRTCL_" in str(msg.payload):
+        protocoltype = str(msg.payload).split(":")[0][2:]
+    elif msg.payload == "b'PRTCL_ASK_CHNL'":
+        protocoltype = str(msg.payload)[2:-1]
 
-    if msg.topic == selftesttopic and "Self test message sent, due to not receiving message within given timeframe" in str(msg.payload):
-        selfTestHang = False
-        #for i in range(0, len(activeErrors)):
-            #if activeErrors[i][0] == f"{server_id} MQTT process":
-                #log.info("Received self test message, removing activeError")
-                #activeErrors.pop(i)
-        if activeErrorHandler(f"{server_id} MQTT process", "Self test message was not received", "remove"):
-            log.info("Received self test message, removed activeError status, removed by on_message")
+    if protocoltype == "":  # not a protocolmessage
+        if msg.topic == "MCASS/hass/restart" and "RESTART" in str(msg.payload):
+            log.info("Hass was restarted, resending all entities")
+            client.publish("MCASS/hass/restart", "OK", qos=1, retain=True)
+            ha.sendAllToHass()
 
-    if msg.topic == negotopic and "PRTCL_ASK_CHNL" in str(msg.payload):
-        client.publish(negotopic, f"PRTCL_NEGO_ANSW:CNFGREQ*{configreqtopic}:CNFGREPL*{configrepltopic}:DVC*{devicetopic}")
+        elif msg.topic == selftesttopic and "Self test message sent, due to not receiving message within given timeframe" in str(msg.payload):
+            selfTestHang = False
+            #for i in range(0, len(activeErrors)):
+                #if activeErrors[i][0] == f"{server_id} MQTT process":
+                    #log.info("Received self test message, removing activeError")
+                    #activeErrors.pop(i)
+            if activeErrorHandler(f"{server_id} MQTT process", "Self test message was not received", "remove"):
+                log.info("Received self test message, removed activeError status, removed by on_message")
 
-    if msg.topic == configreqtopic:
-        device = extract_address(str(msg.payload))
-        if device is None:
-            log.warning(f"No device address provided in message {msg.payload}, continuing")  # nem jött mac address az uzenetben
-        else:
-            config = get_device_config(device)
-            if config is None:  # nincs a config fajlban a mac
-                log.warning(f"No device config available for {device}")
-                tbc(device)  # kulon fajlba beirni a nem definialt macet, met ha a confighoz adjuk hozza ugyanugy megfogja mert nincs hozza config és azt kiüti a beolvasas amihez nincs mqtt csati
-            else:  # egyebkent kuldje el
-                send_config(device, config)
+        elif msg.topic == configreqtopic:
+            device = extract_address(str(msg.payload))
+            if device is None:
+                log.warning(f"No device address provided in message {msg.payload}, continuing")  # nem jött mac address az uzenetben
+            else:
+                config = get_device_config(device)
+                if config is None:  # nincs a config fajlban a mac
+                    log.warning(f"No device config available for {device}")
+                    tbc(device)  # kulon fajlba beirni a nem definialt macet, met ha a confighoz adjuk hozza ugyanugy megfogja mert nincs hozza config és azt kiüti a beolvasas amihez nincs mqtt csati
+                else:  # egyebkent kuldje el
+                    send_config(device, config)
 
-    if str(msg.payload) == "b'HERE'":
-        for i in range(0, len(configtable)):
-            if msg.topic == configtable[i][1]:
-                log.info(f"Device {configtable[i][0]} succesfully connected to own channel")
-                for device in powerMode_handler:
-                    if device[0] == configtable[i][0]:
-                        device[1] = "n/a" # temporary fix for the esp32 powersaving test, (currently the esp frequently reconfigures from 0 so it sets itself back at PWRSV:NROMAL)
-                time.sleep(delayResponseWithSecond)
-                client.publish(configtable[i][1], "channel change ack")
-
-    if "b'ping ok'" == str(msg.payload):
-        mrt = time.monotonic()
-        for i in range(0, len(configtable)):
-            if configtable[i][1] == msg.topic:
-                address = configtable[i][0]
-                p.pingend(address, mrt)
-
-    if str(msg.payload) == "b'PRTCL_PINCONFIG:REQUEST'":  # pinconfig request ---#PRTCL_PINCONFIG:config
-        for i in range(0, len(configtable)):
-            if msg.topic == configtable[i][1]:
-                time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
-                client.publish(configtable[i][1], f"PRTCL_PINCONFIG:{domainRemover(configtable[i][2])}")
-
-    if "PRTCL_READBACK:" in str(msg.payload):  # readback ---#PRTCL_READBACK:OK if ok ---#PRTCL_READBACK:NOPE if not good readback
-        if "OK" not in str(msg.payload) and "NOPE" not in str(msg.payload):
+        elif str(msg.payload) == "b'HERE'":
             for i in range(0, len(configtable)):
                 if msg.topic == configtable[i][1]:
-                    if str(msg.payload).split(":")[1][:-1] == domainRemover(configtable[i][2]):
-                        time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
-                        client.publish(configtable[i][1], "PRTCL_READBACK:OK")
+                    log.info(f"Device {configtable[i][0]} succesfully connected to own channel")
+                    for device in powerMode_handler:
+                        if device[0] == configtable[i][0]:
+                            device[1] = "n/a" # temporary fix for the esp32 powersaving test, (currently the esp frequently reconfigures from 0 so it sets itself back at PWRSV:NROMAL)
+                    time.sleep(delayResponseWithSecond)
+                    client.publish(configtable[i][1], "channel change ack")
+
+        elif "b'ping ok'" == str(msg.payload):
+            mrt = time.monotonic()
+            for i in range(0, len(configtable)):
+                if configtable[i][1] == msg.topic:
+                    address = configtable[i][0]
+                    p.pingend(address, mrt)
+
+    else:  # protocolmessage
+        if msg.topic == negotopic and "PRTCL_ASK_CHNL" in str(msg.payload):
+            client.publish(negotopic, f"PRTCL_NEGO_ANSW:CNFGREQ*{configreqtopic}:CNFGREPL*{configrepltopic}:DVC*{devicetopic}")
+
+        elif str(msg.payload) == "b'PRTCL_PINCONFIG:REQUEST'":  # pinconfig request ---#PRTCL_PINCONFIG:config
+            for i in range(0, len(configtable)):
+                if msg.topic == configtable[i][1]:
+                    time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                    client.publish(configtable[i][1], f"PRTCL_PINCONFIG:{domainRemover(configtable[i][2])}")
+
+        elif "PRTCL_READBACK" == protocoltype: # in str(msg.payload):  # readback ---#PRTCL_READBACK:OK if ok ---#PRTCL_READBACK:NOPE if not good readback
+            if "OK" not in str(msg.payload) and "NOPE" not in str(msg.payload):
+                for i in range(0, len(configtable)):
+                    if msg.topic == configtable[i][1]:
+                        if str(msg.payload).split(":")[1][:-1] == domainRemover(configtable[i][2]):
+                            time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                            client.publish(configtable[i][1], "PRTCL_READBACK:OK")
+                        else:
+                            time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                            client.publish(configtable[i][1], "PRTCL_READBACK:NOPE")
+
+        elif "PRTCL_LOG" == protocoltype: #in str(msg.payload):
+            if str(msg.payload).split(":")[0] == "b'PRTCL_LOG_INFO":
+                #log.info(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+                log.addTologWOQue("INFO", f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+            elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG_WARNING":
+                #log.warning(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+                log.addTologWOQue("WARNING", f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+            elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG_ERROR":
+                #log.error(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+                log.addTologWOQue("ERROR", f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+            elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG":
+                #log.warning(f'No error level was provided, general log protocol. Handling as warning. Error in next line')
+                log.addTologWOQue("WARNING", f'No error level was provided, general log protocol. Handling as warning. Error in next line')
+                #log.warning(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+                log.addTologWOQue("WARNING", f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
+            else:
+                #log.error(f'Unkown error level provided from {str(msg.topic)} with level {str(msg.payload).split(":")[0][-2:]}\nError message was: {str(msg.payload).split(":")[1][:-1]}')
+                log.addTologWOQue("ERROR", f'Unkown error level provided from {str(msg.topic)} with level {str(msg.payload).split(":")[0][-2:]}\nError message was: {str(msg.payload).split(":")[1][:-1]}')
+
+        elif "PRTCL_GIVEINFO_HW" == protocoltype: #in str(msg.payload):
+            global devicesWithUpdatedData
+            device = ""
+            giveninfo = str(msg.payload).split(":", 1)[1][:-1]
+            for entry in configtable:
+                if str(msg.topic) == entry[1]:
+                    device = entry[0]
+            if device != "":
+                ha.updateData(device, giveninfo)
+                devicesWithUpdatedData.append(device)
+
+
+        elif "PRTCL_GIVEINFO_RT" == protocoltype: #in str(msg.payload):
+            device = ""
+            giveninfo = str(msg.payload).split(":", 1)[1][:-1]
+            for entry in configtable:
+                if str(msg.topic) == entry[1]:
+                    device = entry[0]
+            for entry in deviceData:
+                if entry[0] == device:
+                    for data in giveninfo.split(","):# mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
+                        if "MODEL" in data:
+                            entry[1] = data.split("=")[1]
+                        elif "IP" in data:
+                            entry[3] = data.split("=")[1]
+                        elif "GATEWAY" in data:
+                            entry[2] = data.split("=")[1]
+                        elif "MASK" in data:
+                            entry[4] = data.split("=")[1]
+                        else:
+                            log.error(f"Unkown data provided via protocol PRTCL_GIVEINFO_RT by device with mac address {device}, given info was {giveninfo}")
+
+        elif "PRTCL_VAL" == protocoltype:#in str(msg.payload):  # value forwarder
+            if HaState == "ON":
+                #addToVALQue(str(msg.topic), str(msg.payload))
+
+
+                if len(str(msg.payload).split("/")) < 2:  # ha single sensor
+                    name = str(msg.payload).split(":")[1].split("@")[0]
+                    value = str(msg.payload).split("@")[1][:-1]
+                    SensorName = name  # sensor name
+                    Device = ""  # mac address
+                    Domain = ""
+                    for device in configtable:
+                        if str(msg.topic) == device[1]:
+                            Device = device[0]
+                            for entry in device[2].split("/"):
+                                if "(" in entry:
+                                    compname = entry.split("@")[1].split("(")[0]
+                                else:
+                                    compname = entry.split("@")[1]
+                                if "_" in name:
+                                    name = name.split("_")[0]
+                                if name in compname:
+                                    if len(entry.split("(")) == 2:  # ha tud (-ra splitelni akkor van domain definialva
+                                        Domain = entry.split("@")[1].split("(")[1].split(")")[0]
+                                    else:
+                                        continue
+
+                    mac = ""
+                    for element in configtable:
+                        if str(msg.topic) == element[1]:
+                            mac = element[0]
+                    sendOnlineAvail = False
+
+                    """result = log.inLastXConsole(10, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2)  # azet 2 a maxOccurance mert amikor megjon az uzenet es azt triggereli, akk hozza is adodik a loghoz, szoval mar lesz benne 1
+                    if result is False:
+                        result = log.inLastXConsole(150, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2) # changed to 150 due to frequent not found messages
+                    if result is False:
+                        log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
+                        sendOnlineAvail = True """
+                    indexOfMessage = -1
+                    indexOfAdded = -1
+                    indexOfRemoved = -1
+
+                    #minél régebbi annál kisebb az indexe nekunk meg fordtiva kell
+                    x = 150  # ammount of lines to check, also used to invert the index coming back from inlastxconsoel
+
+                    indexOfSensor = log.inLastXConsole(x, f'PRTCL_VAL:{SensorName}@', returnNumber=True, maxOccurance=2)  # a mostani beérkezett előtt nézzük hogy van e azért 2 a amxoccurance
+                    if indexOfSensor == -1:  # ha nem volt az elozo 150be sensor value console log
+                        indexOfSensor = x - indexOfSensor
+                        log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+                        sendOnlineAvail = True
+
+                    else: # ha volt sensor log
+                        indexOfMessage = log.inLastXConsole(x, f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"', returnNumber=True, maxOccurance=1)  # get index of f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+                        if indexOfMessage != -1:
+                            indexOfMessage = x - indexOfMessage
+                        indexOfAdded = log.inLastXConsole(x, f'Device {mac} added to activeErrors list with reason:"Device offline"', returnNumber=True, maxOccurance=1)  # get index of added to activerrors
+                        if indexOfAdded != -1:
+                            indexOfAdded = x - indexOfAdded
+                        indexOfRemoved = log.inLastXConsole(x, f'Device {mac} removed from activeErrors list', returnNumber=True, maxOccurance=1)  # get index of removed from activerrors
+                        if indexOfRemoved != -1:
+                            indexOfRemoved = x - indexOfRemoved
+                        ###forditva megy a listan vegig, leguajbbtol legregebbiig
+
+                        if indexOfMessage == -1 and indexOfRemoved == -1 and indexOfAdded == -1:  # absolutely no data from device
+                            if not log.inLastX(x/3, f"No previous data from device {mac}, sending forcevalues...", maxOccurance=1):
+                                log.info(f"No previous data from device {mac}, sending forcevalues...")
+                            log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+                            sendOnlineAvail = True
+                        elif indexOfMessage != -1 and indexOfRemoved == -1 and indexOfAdded == -1:  # only sensor data from device
+                            #log.info("Only sensor data available from device, no availability status")
+                            sendOnlineAvail = False
+                        elif indexOfRemoved != -1 and indexOfAdded == -1: #REMOVED PARTS___indexOfMessage != -1 and ------  # online was sent, device got back alive but went offline out of range, so fix older than revival
+                            sendOnlineAvail = False
+                        elif indexOfRemoved == -1 and indexOfAdded != -1: #REMOVED PARTS___ indexOfMessage != -1 and  and indexOfMessage < indexOfSensor------- # online was sent, device wnet offline but came back alive out of range, so fix older than going offline (device should be offline now)
+                            sendOnlineAvail = True
+                            if activeErrorHandler(f"{mac} offline", "Device did not respond to ping request", "remove"):  # remove device from activeerror
+                                log.info(f'Device {mac} removed from activeErrors list with reason:"Device sent sensor value, removing from activeError list and sending PRTCL_FORCEVALUES", removed by on_message:PRTCL_VAL processor')
+                            else:  # could not remove activeerror status
+                                log.warning(f"Warning from on_message:PRTCL_VAL, device should be offline ({mac}), attempted to remove actieerror status but failed with values: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")
+                            client.publish(str(msg.topic), "PRTCL_FORCEVALUES")
+
+                        elif indexOfMessage != -1 and indexOfRemoved != -1 and indexOfAdded != -1:  # ha egyik sem alapérték
+                            if indexOfMessage < indexOfRemoved and indexOfRemoved < indexOfAdded:  # if messageindex < removed and removed < added
+                                sendOnlineAvail = False  # skip
+                            elif indexOfRemoved < indexOfAdded:
+                                log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"')
+                                sendOnlineAvail = True
+                            elif indexOfAdded < indexOfRemoved:
+                                sendOnlineAvail = True
+                                log.info(f"Sensor values received from offline device ({mac})")
+                                if activeErrorHandler(f"{mac} offline", "Device did not respond to ping request", "remove"):  # remove device from activeerror
+                                    log.info(f'Device {mac} removed from activeErrors list with reason:"Device sent sensor value, removing from activeError list and sending PRTCL_FORCEVALUES", removed by on_message:PRTCL_VAL processor') #log.info values received from oflfine device
+                                else:  # could not remove activeerror status
+                                    log.warning(f"Warning from on_message:PRTCL_VAL, device should be offline ({mac}), attempted to remove actieerror status but failed with values: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")
+                                client.publish(str(msg.topic), "PRTCL_FORCEVALUES")
+                            else:
+                                log.error(f"Unkown state occured in PRTCL_VAL availability processor with values where all items have value: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")#log.error unprecedented status in prtcl_val avaialablity processor (log all 3 indexes)
+
+                        else:
+                            log.error(f"Unkown state occured in PRTCL_VAL availability processor with values: indexOfMessage:{indexOfMessage}, indexOfRemoved:{indexOfRemoved}, indexOfAdded:{indexOfAdded}")#log.error unprecedented status in prtcl_val avaialablity processor (log all 3 indexes)
+
+
+                    ### end of extra part
+
+                    topic = ha.getStatusTopic(SensorName, Device, Domain)  # get status topic
+                    availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
+                    if sendOnlineAvail and availtopic is not None:
+                        client.publish(availtopic, "online")
+                    if topic is not None:
+                        inlastAmm = 10  # might have to set higher if using multiple devices
+                        client.publish(topic, value)
+                        client.publish(availtopic, "online")
+                        #if log.inLastX(inlastAmm, f"Availability check failed for device mcass{Device.lower()}") is True: #EZT KIVETTEM INNEN MERT VAN HOGY NEM REAGÁL AZ ELSŐRE: and log.inLastX(2, f": Ping failed for device {Device} previously, sending force values command") is False:
+                        if log.inLastX(inlastAmm, f"Availability check succeeded for device {Device.lower()} that was previously unavailable") is True: #testelés után törölhető
+                            log.info(f"Ping failed for device {Device} previously, sending force values command\n (sent from extra)")
+                            client.publish(str(msg.topic), "PRTCL_FORCEVALUES")
                     else:
-                        time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
-                        client.publish(configtable[i][1], "PRTCL_READBACK:NOPE")
-
-    if "PRTCL_LOG" in str(msg.payload):
-        if str(msg.payload).split(":")[0] == "b'PRTCL_LOG_INFO":
-            log.info(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
-        elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG_WARNING":
-            log.warning(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
-        elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG_ERROR":
-            log.error(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
-        elif str(msg.payload).split(":")[0] == "b'PRTCL_LOG":
-            log.warning(f'No error level was provided, general log protocol. Handling as warning. Error in next line')
-            log.warning(f'Log from {str(msg.topic)}: {str(msg.payload).split(":", 1)[1][:-1]}')
-        else:
-            log.error(f'Unkown error level provided from {str(msg.topic)} with level {str(msg.payload).split(":")[0][-2:]}\nError message was: {str(msg.payload).split(":")[1][:-1]}')
-
-    if "PRTCL_GIVEINFO_HW:" in str(msg.payload):
-        global devicesWithUpdatedData
-        device = ""
-        giveninfo = str(msg.payload).split(":", 1)[1][:-1]
-        for entry in configtable:
-            if str(msg.topic) == entry[1]:
-                device = entry[0]
-        if device != "":
-            ha.updateData(device, giveninfo)
-            devicesWithUpdatedData.append(device)
+                        log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
+                else:
+                    log.error("Báttya itt valami nem jó mert csak 1et kéne hogy kapjak egyszerre")
 
 
-    if "PRTCL_GIVEINFO_RT:" in str(msg.payload):
-        device = ""
-        giveninfo = str(msg.payload).split(":", 1)[1][:-1]
-        for entry in configtable:
-            if str(msg.topic) == entry[1]:
-                device = entry[0]
-        for entry in deviceData:
-            if entry[0] == device:
-                for data in giveninfo.split(","):# mac, device_model, gateway, ip_addr, mask, last_avg_ping_time
-                    if "MODEL" in data:
-                        entry[1] = data.split("=")[1]
-                    elif "IP" in data:
-                        entry[3] = data.split("=")[1]
-                    elif "GATEWAY" in data:
-                        entry[2] = data.split("=")[1]
-                    elif "MASK" in data:
-                        entry[4] = data.split("=")[1]
-                    else:
-                        log.error(f"Unkown data provided via protocol PRTCL_GIVEINFO_RT by device with mac address {device}, given info was {giveninfo}")
-
-    if "PRTCL_VAL:" in str(msg.payload):  # value forwarder
-        if HaState == "ON":
-            if len(str(msg.payload).split("/")) < 2:  # ha single sensor
-                name = str(msg.payload).split(":")[1].split("@")[0]
-                value = str(msg.payload).split("@")[1][:-1]
-                SensorName = name  # sensor name
+        elif "PRTCL_AVAILABILITY_OFF" == protocoltype: #in str(msg.payload):
+            if HaState == "ON":
+                ent_name = str(msg.payload).split(",")[0].split(":")[1]
+                ent_type = str(msg.payload).split(",")[1]
+                SensorName = ent_name
                 Device = ""  # mac address
                 Domain = ""
                 for device in configtable:
                     if str(msg.topic) == device[1]:
                         Device = device[0]
-                        for entry in device[2].split("/"):
-                            if "(" in entry:
-                                compname = entry.split("@")[1].split("(")[0]
-                            else:
-                                compname = entry.split("@")[1]
-                            if "_" in name:
-                                name = name.split("_")[0]
-                            if name in compname:
-                                if len(entry.split("(")) == 2:  # ha tud (-ra splitelni akkor van domain definialva
-                                    Domain = entry.split("@")[1].split("(")[1].split(")")[0]
-                                else:
-                                    continue
-
-                ### check in logs if data was ever received ,from sensor (fix issue where if entity was put into offline in hass in a different session it was not brought back automatically, only after device went offline and came back)
-                '''sendOnlineAvail = False
-                result = log.inLastXConsole(10, f'PRTCL_VAL:{str(msg.payload).split(":")[1].split("@")[0]}', maxOccurance=2)  # azet 2 a maxOccurance mert amikor megjon az uzenet es azt triggereli, akk hozza is adodik a loghoz, szoval mar lesz benne 1
-                if result is False:
-                    result = log.inLastXConsole(150, f'PRTCL_VAL:{str(msg.payload).split(":")[1].split("@")[0]}', maxOccurance=2) # changed to 150 due to frequent not found messages
-                if result is False:
-                    log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
-                    sendOnlineAvail = True'''
-                # also maybe check if a set to unavailable happeneded beofre this és akkor is megcsinal ill forcevalue???
-                mac = ""
-                for element in configtable:
-                    if str(msg.topic) == element[1]:
-                        mac = element[0]
-                sendOnlineAvail = False
-                result = log.inLastXConsole(10, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2)  # azet 2 a maxOccurance mert amikor megjon az uzenet es azt triggereli, akk hozza is adodik a loghoz, szoval mar lesz benne 1
-                if result is False:
-                    result = log.inLastXConsole(150, f'Device {mac} removed from activeErrors list, device responded', maxOccurance=2) # changed to 150 due to frequent not found messages
-                if result is False:
-                    log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
-                    sendOnlineAvail = True
-
-
-                ### end of extra part
-
-                topic = ha.getStatusTopic(SensorName, Device, Domain)  # get status topic
-                availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
-                if sendOnlineAvail and availtopic is not None:
-                    client.publish(availtopic, "online")
-                if topic is not None:
-                    inlastAmm = 10  # might have to set higher if using multiple devices
-                    client.publish(topic, value)
-                    client.publish(availtopic, "online")
-                    #if log.inLastX(inlastAmm, f"Availability check failed for device mcass{Device.lower()}") is True: #EZT KIVETTEM INNEN MERT VAN HOGY NEM REAGÁL AZ ELSŐRE: and log.inLastX(2, f": Ping failed for device {Device} previously, sending force values command") is False:
-                    if log.inLastX(inlastAmm, f"Availability check succeeded for device {Device.lower()} that was previously unavailable") is True: #testelés után törölhető
-                        log.info(f"Ping failed for device {Device} previously, sending force values command\n (sent from extra)")
-                        client.publish(str(msg.topic), "PRTCL_FORCEVALUES")
-                else:
-                    log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
-            else:
-                log.error("Báttya itt valami nem jó mert csak 1et kéne hogy kapjak egyszerre")
-
-    if "PRTCL_AVAILABILITY_OFF:" in str(msg.payload):
-        if HaState == "ON":
-            ent_name = str(msg.payload).split(",")[0].split(":")[1]
-            ent_type = str(msg.payload).split(",")[1]
-            SensorName = ent_name
-            Device = ""  # mac address
-            Domain = ""
-            for device in configtable:
-                if str(msg.topic) == device[1]:
-                    Device = device[0]
-            Names = ha.getSubSensors(SensorName, Device, Domain)
-            for SensorName in Names:
-                availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
-                if availtopic is not None:
-                    client.publish(availtopic, "offline")
-                else:
-                    log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
-
-    if "PRTCL_SET_ONLINE" in str(msg.payload):
-        for element in configtable:
-            if element[1] == str(msg.topic):
-                for entity in element[2].split("/"):
-                    if str(msg.payload).split(":")[1].replace("'", "") in entity:
-                        helpentity = ""
-                        helpdomain = ""
-                        try:
-                            helpentity = entity.split("@")[1].split("(")[0]
-                            #helpdomain = entity.split("@")[1].split("(")[1:-1]
-                        except:
-                            helpentity = entity.split("@")[1]
-                            #helpdomain = ""
-                        print(helpentity, element[0], helpdomain)
-                        print(ha.getAvailabilityTopic(helpentity, element[0], helpdomain))
-                        client.publish(ha.getAvailabilityTopic(helpentity, element[0], helpdomain), "online")
-
-    if "b'PRTCL_DVC_OK'" == str(msg.payload):
-        device = ""
-        for entry in configtable:
-            if entry[1] == msg.topic:
-                device = entry[0]
-        log.info(f"Data validity check for device with MAC address {device} succeeded")
-
-    if "b'PRTCL_DVC_FAIL'" == str(msg.payload):
-        device = ""
-        for entry in configtable:
-            if entry[1] == msg.topic:
-                device = entry[0]
-        log.warning(f"Data validity check for device with MAC address {device} failed, asking for device info")
-        for entry in configtable:
-            if entry[0] == device:
-                client.publish(entry[1], "PRTCL_GETINFO:SELF")  # get the data of the device itself
-
-    if "PRTCL_VALIDATE:" in str(msg.payload) and str(msg.payload) != "b'PRTCL_VALIDATE:RESPONSE_FAIL'" and str(msg.payload) != "b'PRTCL_VALIDATE:RESPONSE_OK'":
-        help = str(msg.payload).split(":")[1][:-1]
-        for entry in configtable:
-            if msg.topic == entry[1]:
-                if entry[0] != help.split(",")[0]:
-                    time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
-                    client.publish(msg.topic, "PRTCL_VALIDATE:RESPONSE_FAIL")
-                else:
-                    if domainRemover(entry[2]) != help.split(",")[1]:
-                        time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
-                        client.publish(entry[1], "PRTCL_VALIDATE:RESPONSE_FAIL")
+                Names = ha.getSubSensors(SensorName, Device, Domain)
+                for SensorName in Names:
+                    availtopic = ha.getAvailabilityTopic(SensorName, Device, Domain)
+                    if availtopic is not None:
+                        client.publish(availtopic, "offline")
                     else:
+                        log.error(f'Failed to find status topic for sensor with name "{SensorName}" under device "{Device}" (Domain:"{Domain}")')
+
+        elif "PRTCL_SET_ONLINE" == protocoltype: #in str(msg.payload):
+            for element in configtable:
+                if element[1] == str(msg.topic):
+                    for entity in element[2].split("/"):
+                        if str(msg.payload).split(":")[1].replace("'", "") in entity:
+                            helpentity = ""
+                            helpdomain = ""
+                            try:
+                                helpentity = entity.split("@")[1].split("(")[0]
+                                #helpdomain = entity.split("@")[1].split("(")[1:-1]
+                            except:
+                                helpentity = entity.split("@")[1]
+                                #helpdomain = ""
+                            print(helpentity, element[0], helpdomain)
+                            print(ha.getAvailabilityTopic(helpentity, element[0], helpdomain))
+                            client.publish(ha.getAvailabilityTopic(helpentity, element[0], helpdomain), "online")
+
+        elif "b'PRTCL_DVC_OK'" == str(msg.payload):
+            device = ""
+            for entry in configtable:
+                if entry[1] == msg.topic:
+                    device = entry[0]
+            log.info(f"Data validity check for device with MAC address {device} succeeded")
+
+        elif "b'PRTCL_DVC_FAIL'" == str(msg.payload):
+            device = ""
+            for entry in configtable:
+                if entry[1] == msg.topic:
+                    device = entry[0]
+            log.warning(f"Data validity check for device with MAC address {device} failed, asking for device info")
+            for entry in configtable:
+                if entry[0] == device:
+                    client.publish(entry[1], "PRTCL_GETINFO:SELF")  # get the data of the device itself
+
+        elif "PRTCL_VALIDATE:" in str(msg.payload) and str(msg.payload) != "b'PRTCL_VALIDATE:RESPONSE_FAIL'" and str(msg.payload) != "b'PRTCL_VALIDATE:RESPONSE_OK'":
+            help = str(msg.payload).split(":")[1][:-1]
+            for entry in configtable:
+                if msg.topic == entry[1]:
+                    if entry[0] != help.split(",")[0]:
                         time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
-                        client.publish(entry[1], "PRTCL_VALIDATE:RESPONSE_OK")
+                        client.publish(msg.topic, "PRTCL_VALIDATE:RESPONSE_FAIL")
+                    else:
+                        if domainRemover(entry[2]) != help.split(",")[1]:
+                            time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                            client.publish(entry[1], "PRTCL_VALIDATE:RESPONSE_FAIL")
+                        else:
+                            time.sleep(delayResponseWithSecond)  # remove when fixed on RP2040ETH side
+                            client.publish(entry[1], "PRTCL_VALIDATE:RESPONSE_OK")
 
-    if "PRTCL_GETCONTROLTOPIC" in str(msg.payload):
-        for entities in ha.entities:
-            if str(msg.payload).split(":")[1][:-1] == entities[1]:
-                client.publish(msg.topic, f"PRTCL_GIVECONTROLTOPIC:{entities[1]}@{entities[3]}")
+        elif "PRTCL_GETCONTROLTOPIC" == protocoltype: # in str(msg.payload):
+            for entities in ha.entities:
+                if str(msg.payload).split(":")[1][:-1] == entities[1]:
+                    client.publish(msg.topic, f"PRTCL_GIVECONTROLTOPIC:{entities[1]}@{entities[3]}")
 
-    if "PRTCL_PWRSV_STATE" in str(msg.payload):
-        dmac = ""
-        for element in configtable:
-            if msg.topic == element[1]:
-                dmac = element[0]
-                break
-        for device in powerMode_handler:
-            if device[0] == dmac:
-                device[1] = str(msg.payload).split(":")[1][:-1]
-                break
+        elif "PRTCL_PWRSV_STATE" == protocoltype: #in str(msg.payload):
+            dmac = ""
+            for element in configtable:
+                if msg.topic == element[1]:
+                    dmac = element[0]
+                    break
+            for device in powerMode_handler:
+                if device[0] == dmac:
+                    device[1] = str(msg.payload).split(":")[1][:-1]
+                    break
 
-    elif "PRTCL_PWRSV_MODE_UPDATED" in str(msg.payload):
-        dmac = ""
-        for element in configtable:
-            if msg.topic == element[1]:
-                dmac = element[0]
-                break
-        for device in powerMode_handler:
-            if device[0] == dmac:
-                device[1] = str(msg.payload).split(":")[1][:-1]
-                break
+        elif "PRTCL_PWRSV_MODE_UPDATED" == protocoltype: #in str(msg.payload):
+            dmac = ""
+            for element in configtable:
+                if msg.topic == element[1]:
+                    dmac = element[0]
+                    break
+            for device in powerMode_handler:
+                if device[0] == dmac:
+                    device[1] = str(msg.payload).split(":")[1][:-1]
+                    break
+
+    processtime = (time.monotonic() - messageProcessStartTime)*1000
+    if procTimeStat:
+        messageProcessTimes.append(processtime)
+        while len(messageProcessTimes) > 100:  # 50 db 5 eszközre eszközönkent 10 message amibol 4 a ping, de mivel a sajat maga altal kuldottet is megkapja igy x2
+            del messageProcessTimes[0]
+        if sum(messageProcessTimes) != 0:
+            avgMessageProcessTime = sum(messageProcessTimes)/100
+            if avgMessageProcessTime > 25:
+                log.info(f"Avg message processing time for the last 100 exceeded 25 ms, current avg is {avgMessageProcessTime}, last message process time was {processtime}")
+        #if processtime > 10:
+            #log.console(f"Message was: {str(msg.payload)}, time to process: {processtime}")
 
 
 
@@ -2427,6 +2868,8 @@ dailyRunAlready = False
 isFinished = False
 isPingNeeded = False
 pingRunning = False
+logWORuntimeNeeded = False
+logWORuntimeRunning = False
 
 def pingLoop():
     while isPingNeeded:
@@ -2438,6 +2881,12 @@ def runTimeLoop():
     global dailyRunAlready
     global isPingNeeded
     global pingRunning
+    global valQue
+    global valQueProcessRunning
+    global valQueProcessNeeded
+    global logWORuntimeRunning
+    global logWORuntimeNeeded
+
     while True:  # loop
         if PROTOCOL_TIME_SHORT < time.time():  # protocol long
             if PROTOCOL_TIME_SHORT + PROTOCOL_TIMEOUT_SHORT < time.time():
@@ -2479,7 +2928,7 @@ def runTimeLoop():
             pingThread = threading.Thread(target=pingLoop)
             pingThread.start()
             log.console("Started ping thread")
-        if not isPingNeeded and pingRunning:
+        elif not isPingNeeded and pingRunning:
             pingThread.join()
             log.console("Closed ping thread")
             pingRunning = False
@@ -2488,6 +2937,40 @@ def runTimeLoop():
             isPingNeeded = True
         else:
             isPingNeeded = False
+
+    #********************************************************************************************************************************************************************************************************************
+        if valQueProcessNeeded and not valQueProcessRunning:
+            valQueProcessRunning = True
+            messageThread = threading.Thread(target=procVALQueRuntime)
+            messageThread.start()
+            log.console("Started message processing thread")
+        elif not valQueProcessNeeded and valQueProcessRunning:
+            messageThread.join()
+            log.console("Closed message processing thread")
+            valQueProcessRunning = False
+
+        if len(valQue) == 0:
+            continue    # ez ki lett véve mert előfurdulhat hogy ez hamarabb veszi ki minthogy a threadbe a feldolgozas veget erjen  # valQueProcessNeeded = False
+            #valQueProcessNeeded = False
+        else:
+            valQueProcessNeeded = True
+
+        #********************************************************************************************************************************************************************************************************************
+        if len(log.logWOQue) == 0:
+            logWORuntimeNeeded = False    # ez ki lett véve mert előfurdulhat hogy ez hamarabb veszi ki minthogy a threadbe a feldolgozas veget erjen  # valQueProcessNeeded = False
+        else:
+            logWORuntimeNeeded = True
+
+        if logWORuntimeNeeded and not logWORuntimeRunning:
+            logWORuntimeRunning = True
+            remoteLogThread = threading.Thread(target=logWORuntime)
+            remoteLogThread.start()
+            log.console("Started PRTCL_REMOTE log processing thread")
+        elif not logWORuntimeNeeded and logWORuntimeRunning:
+            remoteLogThread.join()
+            log.console("Closed PRTCL_REMOTE log processing thread")
+            logWORuntimeRunning = False
+
 
 
 
@@ -3857,28 +4340,15 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
  #ellenorzest adni neki h minden parameter megvan e az adressable rgb ledeknek
  #ha kezdo ledszam nincs megadva csak egy szám a végé (ketto helyett), akkor 0tol indul es megadott szam a hossz
 
-    ### ---  DONE  ---
-    # nem mennek a protocollok amig ping van mert a ping runtime egybe van a protocolhivasokkal
-    # ami igy gatya mert a protocllok time alapuak
-    # start thread for it then join it back once finished
-    #kell egy valtozo h is ping thread started, mert ha igen ne csinaljon uj threadet amig megy az elozo
-    # 1820-as sor kornykee
-    ### ---  DONE  ---
-
     #még meg kell csinálni a synctohasst rendesen hogy az updatelt datat frissitse hassba is be
     #---Azt ugy kene lehet megcsinálni hogy törli egyik saját diagnostikai entityjet (ami még nem létezik), a snyctohass protocol meg bekuldi ujra, (lehet esetleg direktbe hivni egy dataupdate utan), és felülirj a magavla vitt device dataval
     ### ---ELV DONE TESZTELNI---
 
+    #!!!!!!!!the dummy device, which is used to update device data is not being sent to hass, due to not being written into hassimportdata.txt
+
+
 #logs in the web on device basis, where the logs from the given devices are visible (switching a protocol to off/short stb)
 # Individual protocol control like for server but n device basis????
-
-#configtable es config fileokra lehetne szűrést csinálni tiltott karakterekre amik benne vannak a programba @, &, * ilyenek
-#---ELVETVE---#
-
-# ---- ---- ill lehet log3ba mehetne egy olyan update h az utolso 50 logot bent tartja memoriaban (50 az nem sok nem is kevés) és akkor nem a hattertarat kene gyepalni a folyamatos olvasasokkal (maybe 150 mert az ize i s150-el megy mostmar???)
-#update for this, since 150 is not enough for 2 devices with a dht and a bme (one with a dht, and one with bme)
-#no update for 150 lines helyett ha van egy oylan h a (hozzatartozo) device removed from activerrors list mert ujra elerhető lett akkor kuldje az online-t
-###   ---   CHANGED TO 'removed from activerror list' IN LOG FILE INSTEADD OF CONSOLE --- ELV DONE TESTELNI
 
 #maybe add a "last run" time data point for the protocol page on the web interface
 
@@ -3889,27 +4359,7 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 #first load in all the data, then replace the currently used list
 #Most volt egy rosszul megirt config, azt rafrissitettem es legyilkolta az egesz mqtt-t meg mindent leölt
 
-#hogyha protocol frissiti a hassImportData.txt-t akkor hass syncronizálja már be az adatot a memoryba, mer igy oke h áttölti a változást de amig a memory nincs ujratöltve, amit nem tölt magától ujra addig nem aktualizálodik a friss adat
-# mindegyik hasznalat utan van egy self.reloadData szoval
-# ---   DONE   ----
-
-#automatically send a reload pinconfig when relevant parts of config changed (Dont yet know how to implement in a good way)
-
-#qol upgrade idea: only send error for device av check failed if not in activerror (vagy ha az aktiverrorhoz berakas returnje true lett)
-###---DONE---
-
-
-    ######################----DONE----#################
-    #powerMode(normal, powerSave, powerSave+)
-    #handle powermode negotiation on both server and client side
-    #normal is current
-    # powersave is light powersaving, new protocol times: short:.5s-->15s, normal5s-->2.5m, long1m-->30m, pings every 5m instead of 1m (light rf powersaving for wifi)
-    # powersave+ is extreme powersaving, new protocol times:  short:.5s-->1m, normal5s-->5m, long1m-->60m, pings every 10m instead of 1m (heavy rf powersaveing for wifi)
-    #PRTCL_PWRSV:NORMAL, PRTCL_PWRSV:PWRSV and PRTCL_PWRSV:PWRSVEX
-    #
-    #SOMEHOW HAVE TO SOLVE SO THAT CONFIG RELATED PROTOCOLS DONT GET UPDATED TO THESE NEW TIMES (configproto, validateproto és a tobbi maradjon a regi timeren)
-    ######################----DONE----#################
-
+#automatically send a reload pinconfig when relevant parts of config changed (Dont yet know how to implement in a good way
 
 #add newly added features from esp code to rp code (pl feldolgozatlan/ismeretlen uzenetekre reagalas)
 # SADLY NOT VIABLE IN CURRENT MESSAGING FORMAT (jelenleg egy csatornan megy odavissza az uzenet, igy a not processed message is egy not processed message ezert egy infite loop az egesz szoval majd ha kulon lenne a kuldes meg fogadas akkor megoldhato lenne jol is
@@ -3926,23 +4376,41 @@ az ide erkezett uezenetek lehetnenenk q2-esek (amelyik megmarad a brokeren, és 
 #hogyha HASS class (ha.xx) nelkul probalunk futtatni valamit akkor AttributeError: 'str' object has no attribute 'checkAvailablity' error jon ki
 #akkor fordult elo mikor rossz hass kulcs miatt nem lett peldanyositva de en manualban elinditottam az avCheckerl-t
 
-# CHANGED handlong and grouping of HA protocols
-#ediig csak az volt nezve h elso karakter H a masodik karatker A-e, emellé beraktam hogy a 3adik  az nagyonbbegynelo 0 es kisebbegynelo 9 szobal szam e
-# igy elv mostmar a HA kezdetueken kivul is felismert volna, de mostmar csak a HA+számra triggerel elv
-#----TESZTELNI----
-
-#dummy device, which is used to update device data is not being sent to hass, due to not being written into hassimportdata.txt
-
-#on startup
-#put all devices into activeerrors offline, take out on value message or after succesfully connecting to own channel
-
-
-#log.console(f'No activity found from sensor {SensorName} in the previous 150 messages, setting it to availablity status "online"') # changed to 150
-#-részt ujradolgozni
-#ha benne van h added to activerror list inlastx 150 (de sok a 150 mondjuk) és utana van egy olyan h removed that same device, akkor mehet az online message
-#pontosabban ugy kene h removed from list, és utana ne legyen added to list, és a removed from list lehetne tobb darabszammal
-#ezt kombinálni a fentebbi uzenettel hogyha van oylan is az egyel fentebbi kombinacio utan akkor staright up csak ne kuljdom onlinet mer mar ment
-
-
 #ping kikuldesbe berakni egy feltetelt hogy ha nincs tobb ping soron ne kuldjon ki
-#vagy elobbre rakni a feldolgozasst mint a torlest, mert most forditva van
+#--vagy elobbre rakni a feldolgozasst mint a torlest, mert most forditva van
+####-----DONE-----
+
+#--esetleg a pingek szamozasara ranezni
+
+#mehetne egy reload hass ha confitable valtozott és kell neki reload is
+
+#--illetve ha egy device offline nem kene felé üzeneteket spamelni
+
+#--megcsinálni a received message buffert hogy gyorsabban és esetleg reaálisabb időkben dolgozza fel és ne blokkolja egymást egy üzenet feldolgozás
+
+
+#--kell csinalni egy timert illetve átlagolt statot mennyi ido feldolgozni egy uzenetet
+#--ez mehet hass server entitybe
+#-------DONE-----
+
+#ill ha kiveszel egy eszkozt configbol, akkor ugye kiveszi majdnem mindenhonnan
+#na pont activerrorsbol nem veszi ki és ott benne ragad
+
+#meg ha menet kozben kiveszel egy eszkozt akkkor utana pingeles is kicsit broken
+
+#a menet kozbeni adatmodositast es szinkronizalast nagyon at kene nezni mert very broken rn
+
+#--loading configtable fails, if theres is a preset power mode, but no pinconfig
+#--removing preset power mode fixed issue
+####-----DONE-------
+
+#nem latom pontosan mi van a list-be, de megvan mind3 eszközhoz a running power mode, de ettol fuggetlenul keri toluk a reportot --- manually disabled with override
+#2026_10_15_21:45os log
+
+#devices added during runtime do not get added to ping list
+
+#ha rosszul idoziti az ember a "hass reload" gomb nyomasat mert épp hazsnalja vmi akk crashel
+#arra kene valami blocker vagy, que-zni vagy tök tudja cask fix it
+#+-+ill menet kozbeni reaload hass utan kismillioszor akarja hozzaadni a ping quehoz az osszes eszkozt
+
+#if sync to hass is disabled dont send any data to hass, not just the mqtt discovery
